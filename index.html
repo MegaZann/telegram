@@ -15,30 +15,29 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
             padding: 20px;
         }
         
         .container {
             background: white;
             border-radius: 20px;
-            padding: 30px;
-            max-width: 400px;
-            width: 100%;
+            padding: 20px;
+            max-width: 500px;
+            margin: 0 auto;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
         }
         
         .header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
         }
         
         .header h1 {
             color: #333;
             font-size: 24px;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
         
         .header p {
@@ -67,31 +66,133 @@
             color: #333;
         }
         
-        .checkin-btn {
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            gap: 10px;
+        }
+        
+        .stat-card {
+            flex: 1;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .stat-card .number {
+            font-size: 28px;
+            font-weight: bold;
+        }
+        
+        .stat-card .label {
+            font-size: 12px;
+            opacity: 0.9;
+            color: white;
+        }
+        
+        .month-selector {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 10px;
+        }
+        
+        .month-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .month-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .current-month {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        th {
+            background: #f8f9fa;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        .ontime {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .late-small {
+            color: #ffc107;
+            font-weight: bold;
+        }
+        
+        .late-big {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .far {
+            color: #6c757d;
+        }
+        
+        .checkin-btn, .history-btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
             padding: 15px 30px;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
             border-radius: 12px;
             width: 100%;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 10px;
+            transition: transform 0.2s;
         }
         
-        .checkin-btn:active {
+        .history-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+        
+        .checkin-btn:active, .history-btn:active {
             transform: scale(0.98);
         }
         
-        .checkin-btn.loading {
+        .checkin-btn.loading, .history-btn.loading {
             opacity: 0.7;
             cursor: not-allowed;
         }
         
         .status {
-            margin-top: 20px;
-            padding: 15px;
+            margin-top: 15px;
+            padding: 12px;
             border-radius: 12px;
             text-align: center;
             font-size: 14px;
@@ -119,18 +220,14 @@
             display: block;
         }
         
-        .location-info {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 12px;
-            font-size: 12px;
-            color: #666;
-            display: none;
+        .no-data {
+            text-align: center;
+            padding: 30px;
+            color: #999;
         }
         
         .close-btn {
-            margin-top: 20px;
+            margin-top: 10px;
             background: #6c757d;
             color: white;
             border: none;
@@ -141,62 +238,98 @@
             font-size: 14px;
         }
         
+        .section {
+            display: none;
+        }
+        
+        .section.active {
+            display: block;
+        }
+        
         @media (max-width: 480px) {
             .container {
-                padding: 20px;
+                padding: 15px;
+            }
+            th, td {
+                padding: 8px;
+                font-size: 12px;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>📍 Отметка на работе</h1>
-            <p>Отметьте своё прибытие</p>
+        <!-- Секция отметки -->
+        <div id="checkinSection" class="section active">
+            <div class="header">
+                <h1>📍 Отметка на работе</h1>
+                <p>Отметьте своё прибытие</p>
+            </div>
+            
+            <div class="user-info">
+                <p><span class="label">👤 Имя:</span> <span class="value" id="userName">Загрузка...</span></p>
+                <p><span class="label">🆔 ID:</span> <span class="value" id="userId">Загрузка...</span></p>
+                <p><span class="label">📅 Дата:</span> <span class="value" id="currentDate">Загрузка...</span></p>
+                <p><span class="label">⏰ Время:</span> <span class="value" id="currentTime">Загрузка...</span></p>
+            </div>
+            
+            <button class="checkin-btn" id="checkinBtn">📍 Отметиться</button>
+            <button class="history-btn" id="historyBtn">📋 Мои отметки</button>
+            
+            <div id="status" class="status"></div>
+            <div id="locationInfo" class="status info" style="display: none;"></div>
+            
+            <button class="close-btn" id="closeBtn">Закрыть</button>
         </div>
         
-        <div class="user-info">
-            <p><span class="label">👤 Имя:</span> <span class="value" id="userName">Загрузка...</span></p>
-            <p><span class="label">🆔 ID:</span> <span class="value" id="userId">Загрузка...</span></p>
-            <p><span class="label">📅 Дата:</span> <span class="value" id="currentDate">Загрузка...</span></p>
-            <p><span class="label">⏰ Время:</span> <span class="value" id="currentTime">Загрузка...</span></p>
+        <!-- Секция истории -->
+        <div id="historySection" class="section">
+            <div class="header">
+                <h1>📋 Мои отметки</h1>
+                <p>История посещений</p>
+            </div>
+            
+            <div class="stats" id="statsContainer"></div>
+            
+            <div class="month-selector">
+                <button class="month-btn" id="prevMonth">◀</button>
+                <span class="current-month" id="currentMonth">Загрузка...</span>
+                <button class="month-btn" id="nextMonth">▶</button>
+            </div>
+            
+            <div class="table-container" id="tableContainer">
+                <div class="no-data">Загрузка данных...</div>
+            </div>
+            
+            <button class="checkin-btn" id="backBtn">📍 Назад к отметке</button>
+            <button class="close-btn" id="closeHistoryBtn">Закрыть</button>
         </div>
-        
-        <button class="checkin-btn" id="checkinBtn">📍 Отметиться</button>
-        
-        <div id="status" class="status"></div>
-        <div id="locationInfo" class="location-info"></div>
-        
-        <button class="close-btn" id="closeBtn">Закрыть</button>
     </div>
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
-        // ========== КОНФИГУРАЦИЯ ==========
         const BOT_TOKEN = '7197499100:AAHmbsP6c4ZPA85s0uYVUHbfZ2nrIHKPG8k';
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyYUXV-a5BR-Ma_mFTz7855k8AITi420dysWRwJmAYDPUgfKsrAA-AA3ByMIpiNYuJo1Q/exec';
         
-        // Координаты работы
         const WORK_LAT = 43.29878;
         const WORK_LNG = 45.84382;
-        const ALLOWED_DISTANCE = 300;
-        
-        // Рабочее время
+        const ALLOWED_DISTANCE = 200;
         const WORK_START_HOUR = 9;
-        const WORK_START_MINUTE = 0;
         
-        // Инициализация Telegram Web App
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
         
-        // Данные пользователя
         let userData = {
             id: tg.initDataUnsafe.user?.id || null,
             username: tg.initDataUnsafe.user?.username || "Нет username",
             firstName: tg.initDataUnsafe.user?.first_name || "Пользователь",
             lastName: tg.initDataUnsafe.user?.last_name || ""
         };
+        
+        let currentDate = new Date();
+        let currentMonth = currentDate.getMonth();
+        let currentYear = currentDate.getFullYear();
         
         if (!userData.id) {
             document.getElementById('userName').textContent = "Ошибка авторизации";
@@ -207,7 +340,6 @@
             document.getElementById('userId').textContent = userData.id;
         }
         
-        // Обновление времени
         function updateDateTime() {
             const now = new Date();
             document.getElementById('currentDate').textContent = now.toLocaleDateString('ru-RU');
@@ -217,7 +349,6 @@
         updateDateTime();
         setInterval(updateDateTime, 1000);
         
-        // Запрос геолокации
         function requestLocation() {
             return new Promise((resolve, reject) => {
                 if (!navigator.geolocation) {
@@ -226,13 +357,11 @@
                 }
                 
                 navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        resolve({
-                            latitude: position.coords.latitude,
-                            longitude: position.coords.longitude,
-                            accuracy: position.coords.accuracy
-                        });
-                    },
+                    (position) => resolve({
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        accuracy: position.coords.accuracy
+                    }),
                     (error) => {
                         let errorMessage = '';
                         switch(error.code) {
@@ -255,75 +384,33 @@
             });
         }
         
-        // Отправка в Google Sheets через JSONP (обход CORS)
         function sendToSheets(data) {
-            return new Promise((resolve, reject) => {
-                // Используем callback параметр для JSONP
-                const callbackName = 'callback_' + Date.now();
-                const script = document.createElement('script');
-                
-                window[callbackName] = function(response) {
-                    delete window[callbackName];
-                    document.body.removeChild(script);
-                    resolve(response);
-                };
-                
-                const params = new URLSearchParams();
-                params.append('callback', callbackName);
-                params.append('data', JSON.stringify(data));
-                
-                script.src = `${SCRIPT_URL}?${params.toString()}`;
-                script.onerror = () => {
-                    delete window[callbackName];
-                    document.body.removeChild(script);
-                    reject(new Error('Ошибка соединения'));
-                };
-                
-                document.body.appendChild(script);
-            });
+            return fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(res => res.json());
         }
         
-        // Отправка в Telegram
-        async function sendToBot(location, result) {
-            try {
-                const text = `✅ <b>Новая отметка!</b>\n\n` +
-                    `👤 ${userData.firstName} ${userData.lastName}\n` +
-                    `🆔 ID: ${userData.id}\n` +
-                    `📍 ${location.latitude}, ${location.longitude}\n` +
-                    `📊 Точность: ${Math.round(location.accuracy)} м\n` +
-                    `📋 ${result.message}`;
-                
-                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chat_id: userData.id,
-                        text: text,
-                        parse_mode: 'HTML'
-                    })
-                });
-            } catch (error) {
-                console.error('Ошибка отправки в бот:', error);
-            }
+        function getHistory(user_id, year, month) {
+            return fetch(`${SCRIPT_URL}?action=getHistory&user_id=${user_id}&year=${year}&month=${month+1}`, {
+                method: 'GET'
+            }).then(res => res.json());
         }
         
-        // Расчёт расстояния
         function calculateDistance(lat1, lon1, lat2, lon2) {
             const R = 6371000;
             const φ1 = lat1 * Math.PI / 180;
             const φ2 = lat2 * Math.PI / 180;
             const Δφ = (lat2 - lat1) * Math.PI / 180;
             const Δλ = (lon2 - lon1) * Math.PI / 180;
-            
             const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
                       Math.cos(φ1) * Math.cos(φ2) *
                       Math.sin(Δλ/2) * Math.sin(Δλ/2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            
             return R * c;
         }
         
-        // Основная функция
         async function checkIn() {
             const btn = document.getElementById('checkinBtn');
             const statusDiv = document.getElementById('status');
@@ -351,7 +438,6 @@
                     statusDiv.className = 'status error';
                     statusDiv.textContent = result.message;
                 } else {
-                    // Московское время
                     const now = new Date();
                     const mskOffset = 3 * 60;
                     const localOffset = now.getTimezoneOffset();
@@ -360,7 +446,7 @@
                     const hours = mskTime.getHours();
                     const minutes = mskTime.getMinutes();
                     const currentMinutes = hours * 60 + minutes;
-                    const workStartMinutes = WORK_START_HOUR * 60 + WORK_START_MINUTE;
+                    const workStartMinutes = WORK_START_HOUR * 60;
                     const delayMinutes = currentMinutes - workStartMinutes;
                     const timeStr = `${hours.toString().padStart(2,'0')}:${minutes.toString().padStart(2,'0')}`;
                     
@@ -387,7 +473,6 @@
                     statusDiv.className = 'status success';
                     statusDiv.textContent = result.message;
                     
-                    // Отправляем данные
                     const sheetData = {
                         user_id: userData.id,
                         username: userData.username,
@@ -400,18 +485,7 @@
                     };
                     
                     await sendToSheets(sheetData);
-                    await sendToBot(location, result);
                 }
-                
-                const locationInfo = document.getElementById('locationInfo');
-                locationInfo.innerHTML = `
-                    <strong>📍 Местоположение:</strong><br>
-                    Широта: ${location.latitude}<br>
-                    Долгота: ${location.longitude}<br>
-                    Точность: ${Math.round(location.accuracy)} м<br>
-                    Расстояние: ${Math.round(distance)} м
-                `;
-                locationInfo.style.display = 'block';
                 
                 setTimeout(() => tg.close(), 3000);
                 
@@ -425,8 +499,119 @@
             }
         }
         
+        async function loadHistory() {
+            const tableContainer = document.getElementById('tableContainer');
+            const statsContainer = document.getElementById('statsContainer');
+            
+            tableContainer.innerHTML = '<div class="no-data">Загрузка данных...</div>';
+            
+            try {
+                const data = await getHistory(userData.id, currentYear, currentMonth);
+                
+                if (data.status === 'success' && data.records.length > 0) {
+                    // Статистика
+                    const stats = data.stats;
+                    statsContainer.innerHTML = `
+                        <div class="stat-card">
+                            <div class="number">${stats.total}</div>
+                            <div class="label">Всего дней</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number">${stats.ontime}</div>
+                            <div class="label">Вовремя</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number">${stats.late}</div>
+                            <div class="label">Опоздания</div>
+                        </div>
+                    `;
+                    
+                    // Таблица
+                    let tableHtml = `
+                        <table>
+                            <thead>
+                                <tr><th>📅 Дата</th><th>👤 Имя</th><th>⏰ Опоздание</th></tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    data.records.forEach(record => {
+                        let statusClass = '';
+                        let delayText = '';
+                        
+                        if (record.status === 'Вовремя') {
+                            statusClass = 'ontime';
+                            delayText = '0 мин';
+                        } else if (record.status.includes('Опоздание')) {
+                            statusClass = 'late-small';
+                            delayText = record.delay + ' мин';
+                            if (record.delay > 30) statusClass = 'late-big';
+                        } else {
+                            statusClass = 'far';
+                            delayText = 'Не на месте';
+                        }
+                        
+                        tableHtml += `
+                            <tr>
+                                <td>${record.date}</td>
+                                <td>${record.name}</td>
+                                <td class="${statusClass}">${delayText}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    tableHtml += `</tbody></table>`;
+                    tableContainer.innerHTML = tableHtml;
+                } else {
+                    tableContainer.innerHTML = '<div class="no-data">📭 Нет отметок за этот месяц</div>';
+                    statsContainer.innerHTML = '';
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+                tableContainer.innerHTML = '<div class="no-data">❌ Ошибка загрузки данных</div>';
+            }
+        }
+        
+        function showCheckinSection() {
+            document.getElementById('checkinSection').classList.add('active');
+            document.getElementById('historySection').classList.remove('active');
+        }
+        
+        function showHistorySection() {
+            document.getElementById('checkinSection').classList.remove('active');
+            document.getElementById('historySection').classList.add('active');
+            
+            const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 
+                               'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+            document.getElementById('currentMonth').textContent = `${monthNames[currentMonth]} ${currentYear}`;
+            
+            loadHistory();
+        }
+        
+        function changeMonth(delta) {
+            currentMonth += delta;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            } else if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            
+            const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 
+                               'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+            document.getElementById('currentMonth').textContent = `${monthNames[currentMonth]} ${currentYear}`;
+            
+            loadHistory();
+        }
+        
         document.getElementById('checkinBtn').onclick = checkIn;
+        document.getElementById('historyBtn').onclick = showHistorySection;
+        document.getElementById('backBtn').onclick = showCheckinSection;
         document.getElementById('closeBtn').onclick = () => tg.close();
+        document.getElementById('closeHistoryBtn').onclick = () => tg.close();
+        document.getElementById('prevMonth').onclick = () => changeMonth(-1);
+        document.getElementById('nextMonth').onclick = () => changeMonth(1);
     </script>
 </body>
 </html>
