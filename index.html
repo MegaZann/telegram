@@ -109,6 +109,7 @@
             border-radius: 8px;
             cursor: pointer;
             font-size: 14px;
+            transition: transform 0.2s;
         }
         
         .month-btn:active {
@@ -126,6 +127,8 @@
             margin-bottom: 20px;
             max-height: 400px;
             overflow-y: auto;
+            border-radius: 12px;
+            border: 1px solid #e0e0e0;
         }
         
         table {
@@ -134,20 +137,25 @@
             font-size: 14px;
         }
         
-        th, td {
-            padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        
         th {
             background: #f8f9fa;
             font-weight: bold;
             color: #555;
             position: sticky;
             top: 0;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #e0e0e0;
         }
         
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+            vertical-align: middle;
+        }
+        
+        /* Стили для статусов */
         .ontime {
             color: #28a745;
             font-weight: bold;
@@ -309,7 +317,7 @@
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxTtPp3dF5BW1oJeQO_1Kz3VzTj_DWhwhs69qZh-q-RMwQgeamONdCTvzMcFhs4qE0m7w/exec';
+        const SCRIPT_URL = window.location.origin + window.location.pathname;
         
         const urlParams = new URLSearchParams(window.location.search);
         const BRANCH_FROM_URL = urlParams.get('branch') || '';
@@ -332,7 +340,7 @@
         let currentMonth = new Date().getMonth();
         let currentYear = new Date().getFullYear();
         
-        // Универсальная функция JSONP запроса
+        // Функция JSONP запроса
         function jsonpRequest(params) {
             return new Promise((resolve, reject) => {
                 const callbackName = 'jsonp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -344,7 +352,7 @@
                         if (script.parentNode) script.parentNode.removeChild(script);
                         reject(new Error('Превышено время ожидания'));
                     }
-                }, 15000);
+                }, 30000);
                 
                 window[callbackName] = function(response) {
                     clearTimeout(timeout);
@@ -387,45 +395,32 @@
         }
         
         async function sendCheckin(location) {
-            return new Promise((resolve, reject) => {
-                const callbackName = 'checkin_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                const script = document.createElement('script');
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        user_id: userData.id,
+                        username: userData.username,
+                        name: `${userData.firstName} ${userData.lastName}`.trim(),
+                        latitude: location.latitude,
+                        longitude: location.longitude,
+                        accuracy: location.accuracy || 0,
+                        branch: branch
+                    })
+                });
                 
-                const timeout = setTimeout(() => {
-                    if (window[callbackName]) {
-                        delete window[callbackName];
-                        if (script.parentNode) script.parentNode.removeChild(script);
-                        reject(new Error('Превышено время ожидания'));
-                    }
-                }, 15000);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
                 
-                window[callbackName] = function(response) {
-                    clearTimeout(timeout);
-                    delete window[callbackName];
-                    if (script.parentNode) script.parentNode.removeChild(script);
-                    resolve(response);
-                };
-                
-                // Создаем URL для JSONP запроса
-                let url = SCRIPT_URL + '?callback=' + callbackName + 
-                          '&user_id=' + encodeURIComponent(userData.id) +
-                          '&username=' + encodeURIComponent(userData.username) +
-                          '&name=' + encodeURIComponent(`${userData.firstName} ${userData.lastName}`) +
-                          '&latitude=' + encodeURIComponent(location.latitude) +
-                          '&longitude=' + encodeURIComponent(location.longitude) +
-                          '&accuracy=' + encodeURIComponent(location.accuracy) +
-                          '&branch=' + encodeURIComponent(branch);
-                
-                script.src = url;
-                script.onerror = () => {
-                    clearTimeout(timeout);
-                    delete window[callbackName];
-                    if (script.parentNode) script.parentNode.removeChild(script);
-                    reject(new Error('Ошибка соединения'));
-                };
-                
-                document.body.appendChild(script);
-            });
+                return await response.json();
+            } catch (error) {
+                console.error('POST ошибка:', error);
+                throw error;
+            }
         }
         
         function requestLocation() {
@@ -513,6 +508,8 @@
                 if (distance > ALLOWED_DISTANCE) {
                     statusDiv.className = 'status error';
                     statusDiv.textContent = `❌ Вы далеко от филиала (${Math.round(distance)} м)`;
+                    btn.disabled = false;
+                    btn.classList.remove('loading');
                     return;
                 }
                 
@@ -520,12 +517,10 @@
         
                 const response = await sendCheckin(location);
                 
-                // ВАЖНО: проверяем, что ответ получен и закрываем приложение
                 if (response.status === 'success') {
                     statusDiv.className = 'status success';
                     statusDiv.textContent = response.message;
                     
-                    // Закрываем через 2 секунды
                     setTimeout(() => {
                         if (typeof tg !== 'undefined') {
                             tg.close();
@@ -534,7 +529,7 @@
                 } else {
                     statusDiv.className = 'status error';
                     statusDiv.textContent = '❌ ' + (response.message || 'Ошибка отправки');
-                    btn.disabled = false; // Разблокируем кнопку при ошибке
+                    btn.disabled = false;
                     btn.classList.remove('loading');
                 }
                 
@@ -544,79 +539,94 @@
                 btn.disabled = false;
                 btn.classList.remove('loading');
             }
-            // Не снимаем блокировку при успехе, чтобы нельзя было отправить повторно
         }
         
-async function loadHistory() {
-    const tableContainer = document.getElementById('tableContainer');
-    const statsContainer = document.getElementById('statsContainer');
-    
-    tableContainer.innerHTML = '<div class="no-data">Загрузка данных...</div>';
-    
-    try {
-        const data = await getHistory(userData.id, currentYear, currentMonth);
-        
-        // Добавим отладку - посмотрим что приходит с сервера
-        console.log('Полученные данные:', data);
-        
-        if (data.status === 'success' && data.records && data.records.length > 0) {
-            const stats = data.stats;
-            statsContainer.innerHTML = `
-                <div class="stat-card"><div class="number">${stats.total}</div><div class="label">Всего дней</div></div>
-                <div class="stat-card"><div class="number">${stats.ontime}</div><div class="label">Вовремя</div></div>
-                <div class="stat-card"><div class="number">${stats.late}</div><div class="label">Опоздания</div></div>
-            `;
+        async function loadHistory() {
+            const tableContainer = document.getElementById('tableContainer');
+            const statsContainer = document.getElementById('statsContainer');
             
-            // СОЗДАЕМ ТАБЛИЦУ С 3 КОЛОНКАМИ
-            let tableHtml = '<table><thead>' +
-                           '<tr>' +
-                           '<th>📅 Дата</th>' +
-                           '<th>📊 Статус</th>' +
-                           '<th>⏰ Опоздание</th>' +
-                           '</tr>' +
-                           '</thead><tbody>';
+            tableContainer.innerHTML = '<div class="no-data">Загрузка данных...</div>';
             
-            data.records.forEach(record => {
-                // Определяем текст статуса и класс
-                let statusText = '';
-                let statusClass = '';
-                let delayText = '';
+            try {
+                const data = await getHistory(userData.id, currentYear, currentMonth);
                 
-                if (record.status === 'ontime') {
-                    statusText = '✅ Вовремя';
-                    statusClass = 'ontime';
-                    delayText = '0 мин';
-                } else if (record.status === 'late_small') {
-                    statusText = '⚠️ Опоздание';
-                    statusClass = 'late-small';
-                    delayText = `${record.delay} мин`;
-                } else if (record.status === 'late_big') {
-                    statusText = '🔴 Сильное опоздание';
-                    statusClass = 'late-big';
-                    delayText = `${record.delay} мин`;
+                console.log('Полученные данные:', data);
+                
+                if (data.status === 'success' && data.records && data.records.length > 0) {
+                    const stats = data.stats;
+                    statsContainer.innerHTML = `
+                        <div class="stat-card"><div class="number">${stats.total || 0}</div><div class="label">Всего дней</div></div>
+                        <div class="stat-card"><div class="number">${stats.ontime || 0}</div><div class="label">Вовремя</div></div>
+                        <div class="stat-card"><div class="number">${stats.late || 0}</div><div class="label">Опоздания</div></div>
+                    `;
+                    
+                    // СОЗДАЕМ ТАБЛИЦУ С 3 КОЛОНКАМИ
+                    let tableHtml = '<table>' +
+                                   '<thead>' +
+                                   '<tr>' +
+                                   '<th>📅 Дата</th>' +
+                                   '<th>📊 Статус</th>' +
+                                   '<th>⏰ Опоздание</th>' +
+                                   '</tr>' +
+                                   '</thead><tbody>';
+                    
+                    for (let i = 0; i < data.records.length; i++) {
+                        const record = data.records[i];
+                        
+                        let date = '';
+                        let status = '';
+                        let delay = 0;
+                        
+                        // Проверяем тип данных
+                        if (Array.isArray(record)) {
+                            date = record[0] || '';
+                            status = record[1] || '';
+                            delay = record[2] || 0;
+                        } else {
+                            date = record.date || '';
+                            status = record.status || '';
+                            delay = record.delay || 0;
+                        }
+                        
+                        let statusText = '';
+                        let statusClass = '';
+                        let delayText = '';
+                        
+                        if (status === 'ontime') {
+                            statusText = '✅ Вовремя';
+                            statusClass = 'ontime';
+                            delayText = '0 мин';
+                        } else if (status === 'late_small') {
+                            statusText = '⚠️ Опоздание';
+                            statusClass = 'late-small';
+                            delayText = `${delay} мин`;
+                        } else if (status === 'late_big') {
+                            statusText = '🔴 Сильное опоздание';
+                            statusClass = 'late-big';
+                            delayText = `${delay} мин`;
+                        } else {
+                            statusText = status || 'Неизвестно';
+                            delayText = delay ? `${delay} мин` : '0 мин';
+                        }
+                        
+                        tableHtml += `<tr>
+                            <td>${date}</td>
+                            <td class="${statusClass}">${statusText}</td>
+                            <td>${delayText}</td>
+                        </tr>`;
+                    }
+                    
+                    tableHtml += '</tbody></table>';
+                    tableContainer.innerHTML = tableHtml;
                 } else {
-                    statusText = record.status || 'Неизвестно';
-                    delayText = record.delay ? `${record.delay} мин` : '0 мин';
+                    tableContainer.innerHTML = '<div class="no-data">📭 Нет отметок за этот месяц</div>';
+                    statsContainer.innerHTML = '';
                 }
-                
-                tableHtml += `<tr>
-                    <td>${record.date}</td>
-                    <td class="${statusClass}">${statusText}</td>
-                    <td>${delayText}</td>
-                </tr>`;
-            });
-            
-            tableHtml += '</tbody></table>';
-            tableContainer.innerHTML = tableHtml;
-        } else {
-            tableContainer.innerHTML = '<div class="no-data">📭 Нет отметок за этот месяц</div>';
-            statsContainer.innerHTML = '';
+            } catch (error) {
+                console.error('Ошибка:', error);
+                tableContainer.innerHTML = '<div class="no-data">❌ Ошибка загрузки данных: ' + error.message + '</div>';
+            }
         }
-    } catch (error) {
-        console.error('Ошибка:', error);
-        tableContainer.innerHTML = '<div class="no-data">❌ Ошибка загрузки данных: ' + error.message + '</div>';
-    }
-}
         
         function showCheckinSection() {
             document.getElementById('checkinSection').classList.add('active');
