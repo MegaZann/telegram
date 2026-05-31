@@ -417,25 +417,62 @@
             });
         }
         
-        // Отправка отметки
-        function sendCheckin(location) {
+        // Отправка отметки через POST (более надёжно)
+        async function sendCheckin(location) {
+            const data = {
+                user_id: userData.id,
+                username: userData.username,
+                name: `${userData.firstName} ${userData.lastName}`,
+                latitude: location.latitude,
+                longitude: location.longitude,
+                accuracy: location.accuracy,
+                branch: branch
+            };
+            
+            // Используем POST запрос вместо JSONP
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+            
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                const result = await response.json();
+                return result;
+            } catch (error) {
+                clearTimeout(timeoutId);
+                if (error.name === 'AbortError') {
+                    throw new Error('Превышено время ожидания');
+                }
+                throw error;
+            }
+        }
+
+        // Отправка отметки через JSONP (если POST не работает)
+        function sendCheckinJSONP(location) {
             return new Promise((resolve, reject) => {
                 const callbackName = 'checkin_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
                 const script = document.createElement('script');
                 
-                // Таймаут на случай зависания
-                const timeout = setTimeout(() => {
+                const timeoutId = setTimeout(() => {
                     if (window[callbackName]) {
                         delete window[callbackName];
-                        document.body.removeChild(script);
+                        if (script.parentNode) script.parentNode.removeChild(script);
                         reject(new Error('Превышено время ожидания'));
                     }
                 }, 15000);
                 
                 window[callbackName] = function(response) {
-                    clearTimeout(timeout);
+                    clearTimeout(timeoutId);
                     delete window[callbackName];
-                    document.body.removeChild(script);
+                    if (script.parentNode) script.parentNode.removeChild(script);
                     resolve(response);
                 };
                 
@@ -449,11 +486,12 @@
                     branch: branch
                 };
                 
-                script.src = `${SCRIPT_URL}?callback=${callbackName}&data=${encodeURIComponent(JSON.stringify(data))}`;
+                const url = `${SCRIPT_URL}?callback=${callbackName}&data=${encodeURIComponent(JSON.stringify(data))}`;
+                script.src = url;
                 script.onerror = () => {
-                    clearTimeout(timeout);
+                    clearTimeout(timeoutId);
                     delete window[callbackName];
-                    document.body.removeChild(script);
+                    if (script.parentNode) script.parentNode.removeChild(script);
                     reject(new Error('Ошибка соединения'));
                 };
                 
