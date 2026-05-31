@@ -387,8 +387,13 @@
         }
         
         async function sendCheckin(location) {
-            return jsonpRequest({
-                data: JSON.stringify({
+            // Вместо JSONP используем POST
+            const response = await fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
                     user_id: userData.id,
                     username: userData.username,
                     name: `${userData.firstName} ${userData.lastName}`,
@@ -398,6 +403,7 @@
                     branch: branch
                 })
             });
+            return await response.json();
         }
         
         function requestLocation() {
@@ -458,6 +464,8 @@
         async function checkIn() {
             const btn = document.getElementById('checkinBtn');
             const statusDiv = document.getElementById('status');
+
+            if (btn.disabled) return;
             
             if (!branch || branch === 'Не выбран' || branch === '') {
                 statusDiv.className = 'status error';
@@ -487,25 +495,34 @@
                 }
                 
                 statusDiv.textContent = '📤 Отправка данных...';
-                
+        
                 const response = await sendCheckin(location);
                 
+                // ВАЖНО: проверяем, что ответ получен и закрываем приложение
                 if (response.status === 'success') {
                     statusDiv.className = 'status success';
                     statusDiv.textContent = response.message;
-                    setTimeout(() => tg.close(), 2000);
+                    
+                    // Закрываем через 2 секунды
+                    setTimeout(() => {
+                        if (typeof tg !== 'undefined') {
+                            tg.close();
+                        }
+                    }, 2000);
                 } else {
                     statusDiv.className = 'status error';
                     statusDiv.textContent = '❌ ' + (response.message || 'Ошибка отправки');
+                    btn.disabled = false; // Разблокируем кнопку при ошибке
+                    btn.classList.remove('loading');
                 }
                 
             } catch (error) {
                 statusDiv.className = 'status error';
                 statusDiv.textContent = `❌ ${error.message}`;
-            } finally {
-                btn.classList.remove('loading');
                 btn.disabled = false;
+                btn.classList.remove('loading');
             }
+            // Не снимаем блокировку при успехе, чтобы нельзя было отправить повторно
         }
         
         async function loadHistory() {
