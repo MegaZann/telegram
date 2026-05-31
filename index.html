@@ -547,39 +547,76 @@
             // Не снимаем блокировку при успехе, чтобы нельзя было отправить повторно
         }
         
-        async function loadHistory() {
-            const tableContainer = document.getElementById('tableContainer');
-            const statsContainer = document.getElementById('statsContainer');
+async function loadHistory() {
+    const tableContainer = document.getElementById('tableContainer');
+    const statsContainer = document.getElementById('statsContainer');
+    
+    tableContainer.innerHTML = '<div class="no-data">Загрузка данных...</div>';
+    
+    try {
+        const data = await getHistory(userData.id, currentYear, currentMonth);
+        
+        // Добавим отладку - посмотрим что приходит с сервера
+        console.log('Полученные данные:', data);
+        
+        if (data.status === 'success' && data.records && data.records.length > 0) {
+            const stats = data.stats;
+            statsContainer.innerHTML = `
+                <div class="stat-card"><div class="number">${stats.total}</div><div class="label">Всего дней</div></div>
+                <div class="stat-card"><div class="number">${stats.ontime}</div><div class="label">Вовремя</div></div>
+                <div class="stat-card"><div class="number">${stats.late}</div><div class="label">Опоздания</div></div>
+            `;
             
-            tableContainer.innerHTML = '<div class="no-data">Загрузка данных...</div>';
+            // СОЗДАЕМ ТАБЛИЦУ С 3 КОЛОНКАМИ
+            let tableHtml = '<table><thead>' +
+                           '<tr>' +
+                           '<th>📅 Дата</th>' +
+                           '<th>📊 Статус</th>' +
+                           '<th>⏰ Опоздание</th>' +
+                           '</tr>' +
+                           '</thead><tbody>';
             
-            try {
-                const data = await getHistory(userData.id, currentYear, currentMonth);
+            data.records.forEach(record => {
+                // Определяем текст статуса и класс
+                let statusText = '';
+                let statusClass = '';
+                let delayText = '';
                 
-                if (data.status === 'success' && data.records && data.records.length > 0) {
-                    const stats = data.stats;
-                    statsContainer.innerHTML = `
-                        <div class="stat-card"><div class="number">${stats.total}</div><div class="label">Всего дней</div></div>
-                        <div class="stat-card"><div class="number">${stats.ontime}</div><div class="label">Вовремя</div></div>
-                        <div class="stat-card"><div class="number">${stats.late}</div><div class="label">Опоздания</div></div>
-                    `;
-                    
-                    let tableHtml = `</table><thead><tr><th>📅 Дата</th><th>⏰ Опоздание</th></tr></thead><tbody>`;
-                    data.records.forEach(record => {
-                        let delayText = record.delay > 0 ? `⚠️ ${record.delay} мин` : '✅ 0 мин';
-                        let statusClass = record.delay > 0 ? (record.delay <= 30 ? 'late-small' : 'late-big') : 'ontime';
-                        tableHtml += `<tr><td>${record.date}</td><td class="${statusClass}">${delayText}</td></tr>`;
-                    });
-                    tableHtml += `</tbody>${'</table>'}`;
-                    tableContainer.innerHTML = tableHtml;
+                if (record.status === 'ontime') {
+                    statusText = '✅ Вовремя';
+                    statusClass = 'ontime';
+                    delayText = '0 мин';
+                } else if (record.status === 'late_small') {
+                    statusText = '⚠️ Опоздание';
+                    statusClass = 'late-small';
+                    delayText = `${record.delay} мин`;
+                } else if (record.status === 'late_big') {
+                    statusText = '🔴 Сильное опоздание';
+                    statusClass = 'late-big';
+                    delayText = `${record.delay} мин`;
                 } else {
-                    tableContainer.innerHTML = '<div class="no-data">📭 Нет отметок за этот месяц</div>';
-                    statsContainer.innerHTML = '';
+                    statusText = record.status || 'Неизвестно';
+                    delayText = record.delay ? `${record.delay} мин` : '0 мин';
                 }
-            } catch (error) {
-                tableContainer.innerHTML = '<div class="no-data">❌ Ошибка загрузки данных</div>';
-            }
+                
+                tableHtml += `<tr>
+                    <td>${record.date}</td>
+                    <td class="${statusClass}">${statusText}</td>
+                    <td>${delayText}</td>
+                </tr>`;
+            });
+            
+            tableHtml += '</tbody></table>';
+            tableContainer.innerHTML = tableHtml;
+        } else {
+            tableContainer.innerHTML = '<div class="no-data">📭 Нет отметок за этот месяц</div>';
+            statsContainer.innerHTML = '';
         }
+    } catch (error) {
+        console.error('Ошибка:', error);
+        tableContainer.innerHTML = '<div class="no-data">❌ Ошибка загрузки данных: ' + error.message + '</div>';
+    }
+}
         
         function showCheckinSection() {
             document.getElementById('checkinSection').classList.add('active');
