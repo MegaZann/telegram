@@ -400,22 +400,54 @@
             });
         }
         
-        // Отправка в Google Sheets
-        async function sendToSheets(data) {
-            const response = await fetch(SCRIPT_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+        // JSONP функция для отправки в Google Sheets (обход CORS)
+        function sendToSheetsJSONP(data) {
+            return new Promise((resolve, reject) => {
+                const callbackName = 'callback_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                const script = document.createElement('script');
+                
+                window[callbackName] = function(response) {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    resolve(response);
+                };
+                
+                const params = new URLSearchParams();
+                params.append('callback', callbackName);
+                params.append('data', JSON.stringify(data));
+                
+                script.src = `${SCRIPT_URL}?${params.toString()}`;
+                script.onerror = () => {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    reject(new Error('Ошибка соединения с сервером'));
+                };
+                
+                document.body.appendChild(script);
             });
-            return await response.json();
         }
         
-        // Получение истории
-        async function getHistory(user_id, year, month) {
-            const response = await fetch(`${SCRIPT_URL}?action=getHistory&user_id=${user_id}&year=${year}&month=${month+1}`, {
-                method: 'GET'
+        // JSONP для получения истории
+        function getHistoryJSONP(user_id, year, month) {
+            return new Promise((resolve, reject) => {
+                const callbackName = 'history_callback_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                const script = document.createElement('script');
+                
+                window[callbackName] = function(response) {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    resolve(response);
+                };
+                
+                script.src = `${SCRIPT_URL}?action=getHistory&user_id=${user_id}&year=${year}&month=${month+1}&callback=${callbackName}`;
+                script.onerror = () => {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    reject(new Error('Ошибка загрузки истории'));
+                };
+                
+                document.body.appendChild(script);
             });
-            return await response.json();
         }
         
         // Отправка в Telegram
@@ -533,7 +565,8 @@
                         delay: result.delay
                     };
                     
-                    await sendToSheets(sheetData);
+                    // Используем JSONP вместо fetch
+                    await sendToSheetsJSONP(sheetData);
                     await sendToBot(location, result);
                 }
                 
@@ -567,7 +600,8 @@
             tableContainer.innerHTML = '<div class="no-data">Загрузка данных...</div>';
             
             try {
-                const data = await getHistory(userData.id, currentYear, currentMonth);
+                // Используем JSONP для получения истории
+                const data = await getHistoryJSONP(userData.id, currentYear, currentMonth);
                 
                 if (data.status === 'success' && data.records && data.records.length > 0) {
                     // Статистика
