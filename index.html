@@ -272,7 +272,7 @@
             
             <div class="user-info">
                 <p><span class="label">👤 Имя:</span> <span class="value" id="userName">Загрузка...</span></p>
-                <p><span class="label">🆔 ID:</span> <span class="value" id="userId">Загрузка...</span></p>
+                <p><span class="label">🏢 Филиал:</span> <span class="value" id="branchName">Загрузка...</span></p>
                 <p><span class="label">📅 Дата:</span> <span class="value" id="currentDate">Загрузка...</span></p>
                 <p><span class="label">⏰ Время:</span> <span class="value" id="currentTime">Загрузка...</span></p>
             </div>
@@ -313,17 +313,15 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
         // ========== КОНФИГУРАЦИЯ ==========
-        const BOT_TOKEN = '7197499100:AAHmbsP6c4ZPA85s0uYVUHbfZ2nrIHKPG8k';
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyYUXV-a5BR-Ma_mFTz7855k8AITi420dysWRwJmAYDPUgfKsrAA-AA3ByMIpiNYuJo1Q/exec';
         
-        // Координаты работы
-        const WORK_LAT = 43.29878;
-        const WORK_LNG = 45.84382;
-        const ALLOWED_DISTANCE = 300;
-        
-        // Рабочее время
+        // Получаем параметры из URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const BRANCH_FROM_URL = urlParams.get('branch') || '';
+        const WORK_LAT = parseFloat(urlParams.get('lat')) || 43.29878;
+        const WORK_LNG = parseFloat(urlParams.get('lng')) || 45.84382;
+        const ALLOWED_DISTANCE = parseInt(urlParams.get('radius')) || 300;
         const WORK_START_HOUR = 9;
-        const WORK_START_MINUTE = 0;
         
         // Инициализация Telegram Web App
         const tg = window.Telegram.WebApp;
@@ -338,29 +336,119 @@
             lastName: tg.initDataUnsafe.user?.last_name || ""
         };
         
-        let currentDate = new Date();
-        let currentMonth = currentDate.getMonth();
-        let currentYear = currentDate.getFullYear();
+        let branch = BRANCH_FROM_URL;
+        let currentMonth = new Date().getMonth();
+        let currentYear = new Date().getFullYear();
         
-        if (!userData.id) {
-            document.getElementById('userName').textContent = "Ошибка авторизации";
-            document.getElementById('userId').textContent = "Не удалось получить данные";
-            document.getElementById('checkinBtn').disabled = true;
-            document.getElementById('historyBtn').disabled = true;
-        } else {
-            document.getElementById('userName').textContent = `${userData.firstName} ${userData.lastName}`;
-            document.getElementById('userId').textContent = userData.id;
+        // Проверка авторизации
+        async function checkAuth() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = 'status info';
+            statusDiv.textContent = 'Проверка авторизации...';
+            statusDiv.style.display = 'block';
+            
+            try {
+                const userInfo = await getUserInfo();
+                if (userInfo.status === 'success') {
+                    document.getElementById('userName').textContent = userInfo.user.name;
+                    if (!branch && userInfo.user.branch) {
+                        branch = userInfo.user.branch;
+                    }
+                    document.getElementById('branchName').textContent = branch || 'Не выбран';
+                    statusDiv.style.display = 'none';
+                    return true;
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '❌ ' + userInfo.message + '. Пожалуйста, отправьте /start в боте.';
+                    document.getElementById('checkinBtn').disabled = true;
+                    document.getElementById('historyBtn').disabled = true;
+                    return false;
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '❌ Ошибка авторизации: ' + error.message;
+                return false;
+            }
         }
         
-        // Обновление времени
-        function updateDateTime() {
-            const now = new Date();
-            document.getElementById('currentDate').textContent = now.toLocaleDateString('ru-RU');
-            document.getElementById('currentTime').textContent = now.toLocaleTimeString('ru-RU');
+        // Получение информации о пользователе
+        function getUserInfo() {
+            return new Promise((resolve, reject) => {
+                const callbackName = 'userInfo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                const script = document.createElement('script');
+                
+                window[callbackName] = function(response) {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    resolve(response);
+                };
+                
+                script.src = `${SCRIPT_URL}?action=getUserInfo&user_id=${userData.id}&callback=${callbackName}`;
+                script.onerror = () => {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    reject(new Error('Ошибка соединения'));
+                };
+                
+                document.body.appendChild(script);
+            });
         }
         
-        updateDateTime();
-        setInterval(updateDateTime, 1000);
+        // Получение истории
+        function getHistory(user_id, year, month) {
+            return new Promise((resolve, reject) => {
+                const callbackName = 'history_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                const script = document.createElement('script');
+                
+                window[callbackName] = function(response) {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    resolve(response);
+                };
+                
+                script.src = `${SCRIPT_URL}?action=getHistory&user_id=${user_id}&year=${year}&month=${month+1}&callback=${callbackName}`;
+                script.onerror = () => {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    reject(new Error('Ошибка загрузки истории'));
+                };
+                
+                document.body.appendChild(script);
+            });
+        }
+        
+        // Отправка отметки
+        function sendCheckin(location) {
+            return new Promise((resolve, reject) => {
+                const callbackName = 'checkin_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                const script = document.createElement('script');
+                
+                window[callbackName] = function(response) {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    resolve(response);
+                };
+                
+                const data = {
+                    user_id: userData.id,
+                    username: userData.username,
+                    name: `${userData.firstName} ${userData.lastName}`,
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                    accuracy: location.accuracy,
+                    branch: branch
+                };
+                
+                script.src = `${SCRIPT_URL}?callback=${callbackName}&data=${encodeURIComponent(JSON.stringify(data))}`;
+                script.onerror = () => {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    reject(new Error('Ошибка отправки'));
+                };
+                
+                document.body.appendChild(script);
+            });
+        }
         
         // Запрос геолокации
         function requestLocation() {
@@ -400,80 +488,6 @@
             });
         }
         
-        // JSONP функция для отправки в Google Sheets (обход CORS)
-        function sendToSheetsJSONP(data) {
-            return new Promise((resolve, reject) => {
-                const callbackName = 'callback_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                const script = document.createElement('script');
-                
-                window[callbackName] = function(response) {
-                    delete window[callbackName];
-                    document.body.removeChild(script);
-                    resolve(response);
-                };
-                
-                const params = new URLSearchParams();
-                params.append('callback', callbackName);
-                params.append('data', JSON.stringify(data));
-                
-                script.src = `${SCRIPT_URL}?${params.toString()}`;
-                script.onerror = () => {
-                    delete window[callbackName];
-                    document.body.removeChild(script);
-                    reject(new Error('Ошибка соединения с сервером'));
-                };
-                
-                document.body.appendChild(script);
-            });
-        }
-        
-        // JSONP для получения истории
-        function getHistoryJSONP(user_id, year, month) {
-            return new Promise((resolve, reject) => {
-                const callbackName = 'history_callback_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                const script = document.createElement('script');
-                
-                window[callbackName] = function(response) {
-                    delete window[callbackName];
-                    document.body.removeChild(script);
-                    resolve(response);
-                };
-                
-                script.src = `${SCRIPT_URL}?action=getHistory&user_id=${user_id}&year=${year}&month=${month+1}&callback=${callbackName}`;
-                script.onerror = () => {
-                    delete window[callbackName];
-                    document.body.removeChild(script);
-                    reject(new Error('Ошибка загрузки истории'));
-                };
-                
-                document.body.appendChild(script);
-            });
-        }
-        
-        // Отправка в Telegram
-        async function sendToBot(location, result) {
-            try {
-                const text = `✅ <b>Новая отметка!</b>\n\n` +
-                    `👤 ${userData.firstName} ${userData.lastName}\n` +
-                    `🆔 ID: ${userData.id}\n` +
-                    `📍 ${location.latitude}, ${location.longitude}\n` +
-                    `📊 Точность: ${Math.round(location.accuracy)} м\n` +
-                    `📋 ${result.message}`;
-                
-                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chat_id: userData.id,
-                        text: text,
-                        parse_mode: 'HTML'
-                    })
-                });
-            } catch (error) {
-                console.error('Ошибка отправки в бот:', error);
-            }
-        }
-        
         // Расчёт расстояния
         function calculateDistance(lat1, lon1, lat2, lon2) {
             const R = 6371000;
@@ -481,16 +495,20 @@
             const φ2 = lat2 * Math.PI / 180;
             const Δφ = (lat2 - lat1) * Math.PI / 180;
             const Δλ = (lon2 - lon1) * Math.PI / 180;
-            
             const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
                       Math.cos(φ1) * Math.cos(φ2) *
                       Math.sin(Δλ/2) * Math.sin(Δλ/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            
-            return R * c;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
         
-        // Основная функция отметки
+        // Обновление времени
+        function updateDateTime() {
+            const now = new Date();
+            document.getElementById('currentDate').textContent = now.toLocaleDateString('ru-RU');
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString('ru-RU');
+        }
+        
+        // Отметка
         async function checkIn() {
             const btn = document.getElementById('checkinBtn');
             const statusDiv = document.getElementById('status');
@@ -500,90 +518,55 @@
             
             statusDiv.className = 'status info';
             statusDiv.textContent = '📍 Определяем местоположение...';
+            statusDiv.style.display = 'block';
             
             try {
                 const location = await requestLocation();
                 const distance = calculateDistance(location.latitude, location.longitude, WORK_LAT, WORK_LNG);
                 
-                statusDiv.textContent = `📡 Расстояние: ${Math.round(distance)} м`;
-                
-                let result;
+                statusDiv.textContent = `📡 Расстояние до филиала: ${Math.round(distance)} м`;
                 
                 if (distance > ALLOWED_DISTANCE) {
-                    result = {
-                        status: "far",
-                        message: `❌ Вы далеко от работы (${Math.round(distance)} м)`,
-                        delay: 0
-                    };
                     statusDiv.className = 'status error';
-                    statusDiv.textContent = result.message;
+                    statusDiv.textContent = `❌ Вы далеко от филиала (${Math.round(distance)} м)`;
                 } else {
-                    // Московское время
+                    // Проверка времени
                     const now = new Date();
                     const mskOffset = 3 * 60;
                     const localOffset = now.getTimezoneOffset();
                     const mskTime = new Date(now.getTime() + (mskOffset + localOffset) * 60 * 1000);
-                    
                     const hours = mskTime.getHours();
                     const minutes = mskTime.getMinutes();
                     const currentMinutes = hours * 60 + minutes;
-                    const workStartMinutes = WORK_START_HOUR * 60 + WORK_START_MINUTE;
+                    const workStartMinutes = WORK_START_HOUR * 60;
                     const delayMinutes = currentMinutes - workStartMinutes;
                     const timeStr = `${hours.toString().padStart(2,'0')}:${minutes.toString().padStart(2,'0')}`;
                     
+                    let resultMessage = "";
                     if (delayMinutes <= 0) {
-                        result = {
-                            status: "ontime",
-                            message: `✅ Вовремя! (${timeStr})`,
-                            delay: 0
-                        };
+                        resultMessage = `✅ Вы пришли вовремя! (${timeStr})`;
                     } else if (delayMinutes <= 30) {
-                        result = {
-                            status: "late_small",
-                            message: `⚠️ Опоздание на ${delayMinutes} мин (${timeStr})`,
-                            delay: delayMinutes
-                        };
+                        resultMessage = `⚠️ Опоздание на ${delayMinutes} мин (${timeStr})`;
                     } else {
-                        result = {
-                            status: "late_big",
-                            message: `🔴 Опоздание на ${delayMinutes} мин (${timeStr})`,
-                            delay: delayMinutes
-                        };
+                        resultMessage = `🔴 Сильное опоздание на ${delayMinutes} мин (${timeStr})`;
                     }
                     
-                    statusDiv.className = 'status success';
-                    statusDiv.textContent = result.message;
+                    statusDiv.textContent = resultMessage;
                     
-                    const sheetData = {
-                        user_id: userData.id,
-                        username: userData.username,
-                        name: `${userData.firstName} ${userData.lastName}`,
-                        latitude: location.latitude,
-                        longitude: location.longitude,
-                        accuracy: location.accuracy,
-                        status: result.status,
-                        delay: result.delay
-                    };
-                    
-                    // Используем JSONP вместо fetch
-                    await sendToSheetsJSONP(sheetData);
-                    await sendToBot(location, result);
+                    // Отправляем данные
+                    const response = await sendCheckin(location);
+                    if (response.status === 'success') {
+                        statusDiv.className = 'status success';
+                        statusDiv.textContent = resultMessage;
+                    } else {
+                        statusDiv.className = 'status error';
+                        statusDiv.textContent = '❌ ' + (response.message || 'Ошибка отправки');
+                    }
                 }
-                
-                const locationInfo = document.getElementById('locationInfo');
-                locationInfo.innerHTML = `
-                    <strong>📍 Местоположение:</strong><br>
-                    Широта: ${location.latitude}<br>
-                    Долгота: ${location.longitude}<br>
-                    Точность: ${Math.round(location.accuracy)} м<br>
-                    Расстояние: ${Math.round(distance)} м
-                `;
-                locationInfo.style.display = 'block';
                 
                 setTimeout(() => tg.close(), 3000);
                 
             } catch (error) {
-                console.error('Ошибка:', error);
                 statusDiv.className = 'status error';
                 statusDiv.textContent = `❌ ${error.message}`;
             } finally {
@@ -600,63 +583,22 @@
             tableContainer.innerHTML = '<div class="no-data">Загрузка данных...</div>';
             
             try {
-                // Используем JSONP для получения истории
-                const data = await getHistoryJSONP(userData.id, currentYear, currentMonth);
+                const data = await getHistory(userData.id, currentYear, currentMonth);
                 
                 if (data.status === 'success' && data.records && data.records.length > 0) {
-                    // Статистика
                     const stats = data.stats;
                     statsContainer.innerHTML = `
-                        <div class="stat-card">
-                            <div class="number">${stats.total}</div>
-                            <div class="label">Всего дней</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="number">${stats.ontime}</div>
-                            <div class="label">Вовремя</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="number">${stats.late}</div>
-                            <div class="label">Опоздания</div>
-                        </div>
+                        <div class="stat-card"><div class="number">${stats.total}</div><div class="label">Всего дней</div></div>
+                        <div class="stat-card"><div class="number">${stats.ontime}</div><div class="label">Вовремя</div></div>
+                        <div class="stat-card"><div class="number">${stats.late}</div><div class="label">Опоздания</div></div>
                     `;
                     
-                    // Таблица
-                    let tableHtml = `
-                        <table>
-                            <thead>
-                                <tr><th>📅 Дата</th><th>⏰ Опоздание</th></tr>
-                            </thead>
-                            <tbody>
-                    `;
-                    
+                    let tableHtml = `<table><thead><tr><th>📅 Дата</th><th>⏰ Опоздание</th></tr></thead><tbody>`;
                     data.records.forEach(record => {
-                        let statusClass = '';
-                        let delayText = '';
-                        
-                        if (record.status === 'Вовремя') {
-                            statusClass = 'ontime';
-                            delayText = '✅ 0 мин';
-                        } else if (record.status.includes('Опоздание')) {
-                            if (record.delay <= 30) {
-                                statusClass = 'late-small';
-                            } else {
-                                statusClass = 'late-big';
-                            }
-                            delayText = `⚠️ ${record.delay} мин`;
-                        } else {
-                            statusClass = 'far';
-                            delayText = '❌ Не на месте';
-                        }
-                        
-                        tableHtml += `
-                            <tr>
-                                <td>${record.date}</td>
-                                <td class="${statusClass}">${delayText}</td>
-                            </tr>
-                        `;
+                        let delayText = record.delay > 0 ? `⚠️ ${record.delay} мин` : '✅ 0 мин';
+                        let statusClass = record.delay > 0 ? (record.delay <= 30 ? 'late-small' : 'late-big') : 'ontime';
+                        tableHtml += `<tr><td>${record.date}</td><td class="${statusClass}">${delayText}</td></tr>`;
                     });
-                    
                     tableHtml += `</tbody></table>`;
                     tableContainer.innerHTML = tableHtml;
                 } else {
@@ -664,7 +606,6 @@
                     statsContainer.innerHTML = '';
                 }
             } catch (error) {
-                console.error('Ошибка:', error);
                 tableContainer.innerHTML = '<div class="no-data">❌ Ошибка загрузки данных</div>';
             }
         }
@@ -679,10 +620,8 @@
             document.getElementById('checkinSection').classList.remove('active');
             document.getElementById('historySection').classList.add('active');
             
-            const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 
-                               'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+            const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
             document.getElementById('currentMonth').textContent = `${monthNames[currentMonth]} ${currentYear}`;
-            
             loadHistory();
         }
         
@@ -695,24 +634,29 @@
                 currentMonth = 0;
                 currentYear++;
             }
-            
-            const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 
-                               'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+            const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
             document.getElementById('currentMonth').textContent = `${monthNames[currentMonth]} ${currentYear}`;
-            
             loadHistory();
         }
         
-        // Обработчики событий
-        document.getElementById('checkinBtn').onclick = checkIn;
-        document.getElementById('historyBtn').onclick = showHistorySection;
-        document.getElementById('backBtn').onclick = showCheckinSection;
-        document.getElementById('closeBtn').onclick = () => tg.close();
-        document.getElementById('closeHistoryBtn').onclick = () => tg.close();
-        document.getElementById('prevMonth').onclick = () => changeMonth(-1);
-        document.getElementById('nextMonth').onclick = () => changeMonth(1);
+        // Инициализация
+        async function init() {
+            updateDateTime();
+            setInterval(updateDateTime, 1000);
+            
+            const isAuth = await checkAuth();
+            if (isAuth) {
+                document.getElementById('checkinBtn').onclick = checkIn;
+                document.getElementById('historyBtn').onclick = showHistorySection;
+                document.getElementById('backBtn').onclick = showCheckinSection;
+                document.getElementById('closeBtn').onclick = () => tg.close();
+                document.getElementById('closeHistoryBtn').onclick = () => tg.close();
+                document.getElementById('prevMonth').onclick = () => changeMonth(-1);
+                document.getElementById('nextMonth').onclick = () => changeMonth(1);
+            }
+        }
         
-        console.log('Mini App готов к работе');
+        init();
     </script>
 </body>
 </html>
