@@ -124,6 +124,8 @@
         .table-container {
             overflow-x: auto;
             margin-bottom: 20px;
+            max-height: 400px;
+            overflow-y: auto;
         }
         
         table {
@@ -142,6 +144,8 @@
             background: #f8f9fa;
             font-weight: bold;
             color: #555;
+            position: sticky;
+            top: 0;
         }
         
         .ontime {
@@ -308,18 +312,25 @@
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
+        // ========== КОНФИГУРАЦИЯ ==========
         const BOT_TOKEN = '7197499100:AAHmbsP6c4ZPA85s0uYVUHbfZ2nrIHKPG8k';
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyYUXV-a5BR-Ma_mFTz7855k8AITi420dysWRwJmAYDPUgfKsrAA-AA3ByMIpiNYuJo1Q/exec';
         
+        // Координаты работы
         const WORK_LAT = 43.29878;
         const WORK_LNG = 45.84382;
-        const ALLOWED_DISTANCE = 200;
-        const WORK_START_HOUR = 9;
+        const ALLOWED_DISTANCE = 300;
         
+        // Рабочее время
+        const WORK_START_HOUR = 9;
+        const WORK_START_MINUTE = 0;
+        
+        // Инициализация Telegram Web App
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
         
+        // Данные пользователя
         let userData = {
             id: tg.initDataUnsafe.user?.id || null,
             username: tg.initDataUnsafe.user?.username || "Нет username",
@@ -335,11 +346,13 @@
             document.getElementById('userName').textContent = "Ошибка авторизации";
             document.getElementById('userId').textContent = "Не удалось получить данные";
             document.getElementById('checkinBtn').disabled = true;
+            document.getElementById('historyBtn').disabled = true;
         } else {
             document.getElementById('userName').textContent = `${userData.firstName} ${userData.lastName}`;
             document.getElementById('userId').textContent = userData.id;
         }
         
+        // Обновление времени
         function updateDateTime() {
             const now = new Date();
             document.getElementById('currentDate').textContent = now.toLocaleDateString('ru-RU');
@@ -349,6 +362,7 @@
         updateDateTime();
         setInterval(updateDateTime, 1000);
         
+        // Запрос геолокации
         function requestLocation() {
             return new Promise((resolve, reject) => {
                 if (!navigator.geolocation) {
@@ -357,11 +371,13 @@
                 }
                 
                 navigator.geolocation.getCurrentPosition(
-                    (position) => resolve({
-                        latitude: position.coords.latitude,
-                        longitude: position.coords.longitude,
-                        accuracy: position.coords.accuracy
-                    }),
+                    (position) => {
+                        resolve({
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy
+                        });
+                    },
                     (error) => {
                         let errorMessage = '';
                         switch(error.code) {
@@ -384,33 +400,65 @@
             });
         }
         
-        function sendToSheets(data) {
-            return fetch(SCRIPT_URL, {
+        // Отправка в Google Sheets
+        async function sendToSheets(data) {
+            const response = await fetch(SCRIPT_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
-            }).then(res => res.json());
+            });
+            return await response.json();
         }
         
-        function getHistory(user_id, year, month) {
-            return fetch(`${SCRIPT_URL}?action=getHistory&user_id=${user_id}&year=${year}&month=${month+1}`, {
+        // Получение истории
+        async function getHistory(user_id, year, month) {
+            const response = await fetch(`${SCRIPT_URL}?action=getHistory&user_id=${user_id}&year=${year}&month=${month+1}`, {
                 method: 'GET'
-            }).then(res => res.json());
+            });
+            return await response.json();
         }
         
+        // Отправка в Telegram
+        async function sendToBot(location, result) {
+            try {
+                const text = `✅ <b>Новая отметка!</b>\n\n` +
+                    `👤 ${userData.firstName} ${userData.lastName}\n` +
+                    `🆔 ID: ${userData.id}\n` +
+                    `📍 ${location.latitude}, ${location.longitude}\n` +
+                    `📊 Точность: ${Math.round(location.accuracy)} м\n` +
+                    `📋 ${result.message}`;
+                
+                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: userData.id,
+                        text: text,
+                        parse_mode: 'HTML'
+                    })
+                });
+            } catch (error) {
+                console.error('Ошибка отправки в бот:', error);
+            }
+        }
+        
+        // Расчёт расстояния
         function calculateDistance(lat1, lon1, lat2, lon2) {
             const R = 6371000;
             const φ1 = lat1 * Math.PI / 180;
             const φ2 = lat2 * Math.PI / 180;
             const Δφ = (lat2 - lat1) * Math.PI / 180;
             const Δλ = (lon2 - lon1) * Math.PI / 180;
+            
             const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
                       Math.cos(φ1) * Math.cos(φ2) *
                       Math.sin(Δλ/2) * Math.sin(Δλ/2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            
             return R * c;
         }
         
+        // Основная функция отметки
         async function checkIn() {
             const btn = document.getElementById('checkinBtn');
             const statusDiv = document.getElementById('status');
@@ -438,6 +486,7 @@
                     statusDiv.className = 'status error';
                     statusDiv.textContent = result.message;
                 } else {
+                    // Московское время
                     const now = new Date();
                     const mskOffset = 3 * 60;
                     const localOffset = now.getTimezoneOffset();
@@ -446,7 +495,7 @@
                     const hours = mskTime.getHours();
                     const minutes = mskTime.getMinutes();
                     const currentMinutes = hours * 60 + minutes;
-                    const workStartMinutes = WORK_START_HOUR * 60;
+                    const workStartMinutes = WORK_START_HOUR * 60 + WORK_START_MINUTE;
                     const delayMinutes = currentMinutes - workStartMinutes;
                     const timeStr = `${hours.toString().padStart(2,'0')}:${minutes.toString().padStart(2,'0')}`;
                     
@@ -485,7 +534,18 @@
                     };
                     
                     await sendToSheets(sheetData);
+                    await sendToBot(location, result);
                 }
+                
+                const locationInfo = document.getElementById('locationInfo');
+                locationInfo.innerHTML = `
+                    <strong>📍 Местоположение:</strong><br>
+                    Широта: ${location.latitude}<br>
+                    Долгота: ${location.longitude}<br>
+                    Точность: ${Math.round(location.accuracy)} м<br>
+                    Расстояние: ${Math.round(distance)} м
+                `;
+                locationInfo.style.display = 'block';
                 
                 setTimeout(() => tg.close(), 3000);
                 
@@ -499,6 +559,7 @@
             }
         }
         
+        // Загрузка истории
         async function loadHistory() {
             const tableContainer = document.getElementById('tableContainer');
             const statsContainer = document.getElementById('statsContainer');
@@ -508,7 +569,7 @@
             try {
                 const data = await getHistory(userData.id, currentYear, currentMonth);
                 
-                if (data.status === 'success' && data.records.length > 0) {
+                if (data.status === 'success' && data.records && data.records.length > 0) {
                     // Статистика
                     const stats = data.stats;
                     statsContainer.innerHTML = `
@@ -530,7 +591,7 @@
                     let tableHtml = `
                         <table>
                             <thead>
-                                <tr><th>📅 Дата</th><th>👤 Имя</th><th>⏰ Опоздание</th></tr>
+                                <tr><th>📅 Дата</th><th>⏰ Опоздание</th></tr>
                             </thead>
                             <tbody>
                     `;
@@ -541,20 +602,22 @@
                         
                         if (record.status === 'Вовремя') {
                             statusClass = 'ontime';
-                            delayText = '0 мин';
+                            delayText = '✅ 0 мин';
                         } else if (record.status.includes('Опоздание')) {
-                            statusClass = 'late-small';
-                            delayText = record.delay + ' мин';
-                            if (record.delay > 30) statusClass = 'late-big';
+                            if (record.delay <= 30) {
+                                statusClass = 'late-small';
+                            } else {
+                                statusClass = 'late-big';
+                            }
+                            delayText = `⚠️ ${record.delay} мин`;
                         } else {
                             statusClass = 'far';
-                            delayText = 'Не на месте';
+                            delayText = '❌ Не на месте';
                         }
                         
                         tableHtml += `
                             <tr>
                                 <td>${record.date}</td>
-                                <td>${record.name}</td>
                                 <td class="${statusClass}">${delayText}</td>
                             </tr>
                         `;
@@ -572,6 +635,7 @@
             }
         }
         
+        // Переключение секций
         function showCheckinSection() {
             document.getElementById('checkinSection').classList.add('active');
             document.getElementById('historySection').classList.remove('active');
@@ -605,6 +669,7 @@
             loadHistory();
         }
         
+        // Обработчики событий
         document.getElementById('checkinBtn').onclick = checkIn;
         document.getElementById('historyBtn').onclick = showHistorySection;
         document.getElementById('backBtn').onclick = showCheckinSection;
@@ -612,6 +677,8 @@
         document.getElementById('closeHistoryBtn').onclick = () => tg.close();
         document.getElementById('prevMonth').onclick = () => changeMonth(-1);
         document.getElementById('nextMonth').onclick = () => changeMonth(1);
+        
+        console.log('Mini App готов к работе');
     </script>
 </body>
 </html>
