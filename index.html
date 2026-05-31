@@ -172,28 +172,23 @@
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
-        // ========== КОНФИГУРАЦИЯ (ЗАМЕНИТЕ НА СВОИ ЗНАЧЕНИЯ!) ==========
-        // 1. ЗАМЕНИТЕ токен бота (получите новый в @BotFather)
+        // ========== КОНФИГУРАЦИЯ ==========
         const BOT_TOKEN = '7197499100:AAHmbsP6c4ZPA85s0uYVUHbfZ2nrIHKPG8k';
-        
-        // 2. Укажите URL вашего Apps Script после публикации
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyYUXV-a5BR-Ma_mFTz7855k8AITi420dysWRwJmAYDPUgfKsrAA-AA3ByMIpiNYuJo1Q/exec';
         
-        // 3. Укажите КООРДИНАТЫ ВАШЕГО ОФИСА
-        const WORK_LAT = 43.29878;   // Ваша широта
-        const WORK_LNG = 45.84382;   // Ваша долгота
-        const ALLOWED_DISTANCE = 200; // Допустимое расстояние в метрах
+        // Координаты работы
+        const WORK_LAT = 43.29878;
+        const WORK_LNG = 45.84382;
+        const ALLOWED_DISTANCE = 300;
         
-        // 4. Настройки рабочего времени
-        const WORK_START_HOUR = 9;    // Начало работы (9:00)
+        // Рабочее время
+        const WORK_START_HOUR = 9;
         const WORK_START_MINUTE = 0;
-        const ALLOWED_BUFFER_MINUTES = 30; // Можно отметиться за 30 мин до начала
-        // ================================================================
         
         // Инициализация Telegram Web App
         const tg = window.Telegram.WebApp;
         tg.ready();
-        tg.expand(); // Растянуть на весь экран
+        tg.expand();
         
         // Данные пользователя
         let userData = {
@@ -203,18 +198,16 @@
             lastName: tg.initDataUnsafe.user?.last_name || ""
         };
         
-        // Проверка, что пользователь авторизован в Telegram
         if (!userData.id) {
             document.getElementById('userName').textContent = "Ошибка авторизации";
             document.getElementById('userId').textContent = "Не удалось получить данные";
             document.getElementById('checkinBtn').disabled = true;
-            alert("Пожалуйста, откройте это приложение через Telegram бота");
         } else {
             document.getElementById('userName').textContent = `${userData.firstName} ${userData.lastName}`;
             document.getElementById('userId').textContent = userData.id;
         }
         
-        // Обновляем время
+        // Обновление времени
         function updateDateTime() {
             const now = new Date();
             document.getElementById('currentDate').textContent = now.toLocaleDateString('ru-RU');
@@ -224,67 +217,85 @@
         updateDateTime();
         setInterval(updateDateTime, 1000);
         
-        // Функция запроса геолокации
+        // Запрос геолокации
         function requestLocation() {
             return new Promise((resolve, reject) => {
                 if (!navigator.geolocation) {
-                    reject(new Error('Геолокация не поддерживается вашим браузером'));
+                    reject(new Error('Геолокация не поддерживается'));
                     return;
                 }
-                
-                const options = {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0
-                };
                 
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
                         resolve({
                             latitude: position.coords.latitude,
                             longitude: position.coords.longitude,
-                            accuracy: position.coords.accuracy,
-                            timestamp: position.timestamp
+                            accuracy: position.coords.accuracy
                         });
                     },
                     (error) => {
                         let errorMessage = '';
                         switch(error.code) {
                             case error.PERMISSION_DENIED:
-                                errorMessage = 'Доступ к геолокации запрещён. Разрешите доступ в настройках браузера';
+                                errorMessage = 'Доступ к геолокации запрещён';
                                 break;
                             case error.POSITION_UNAVAILABLE:
-                                errorMessage = 'Информация о местоположении недоступна';
+                                errorMessage = 'Местоположение недоступно';
                                 break;
                             case error.TIMEOUT:
-                                errorMessage = 'Время ожидания истекло. Попробуйте ещё раз';
+                                errorMessage = 'Время ожидания истекло';
                                 break;
                             default:
                                 errorMessage = 'Ошибка определения местоположения';
                         }
                         reject(new Error(errorMessage));
                     },
-                    options
+                    { enableHighAccuracy: true, timeout: 10000 }
                 );
             });
         }
         
-        // Отправка данных в бот (для подтверждения пользователю)
+        // Отправка в Google Sheets через JSONP (обход CORS)
+        function sendToSheets(data) {
+            return new Promise((resolve, reject) => {
+                // Используем callback параметр для JSONP
+                const callbackName = 'callback_' + Date.now();
+                const script = document.createElement('script');
+                
+                window[callbackName] = function(response) {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    resolve(response);
+                };
+                
+                const params = new URLSearchParams();
+                params.append('callback', callbackName);
+                params.append('data', JSON.stringify(data));
+                
+                script.src = `${SCRIPT_URL}?${params.toString()}`;
+                script.onerror = () => {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    reject(new Error('Ошибка соединения'));
+                };
+                
+                document.body.appendChild(script);
+            });
+        }
+        
+        // Отправка в Telegram
         async function sendToBot(location, result) {
             try {
                 const text = `✅ <b>Новая отметка!</b>\n\n` +
-                    `👤 <b>Пользователь:</b> ${userData.firstName} ${userData.lastName}\n` +
-                    `🆔 <b>ID:</b> ${userData.id}\n` +
-                    `📍 <b>Координаты:</b> ${location.latitude}, ${location.longitude}\n` +
-                    `📊 <b>Точность:</b> ${Math.round(location.accuracy)} м\n` +
-                    `<b>Результат:</b> ${result.message}\n` +
-                    `⏰ <b>Время:</b> ${new Date().toLocaleString('ru-RU')}`;
+                    `👤 ${userData.firstName} ${userData.lastName}\n` +
+                    `🆔 ID: ${userData.id}\n` +
+                    `📍 ${location.latitude}, ${location.longitude}\n` +
+                    `📊 Точность: ${Math.round(location.accuracy)} м\n` +
+                    `📋 ${result.message}`;
                 
                 await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         chat_id: userData.id,
                         text: text,
@@ -296,30 +307,7 @@
             }
         }
         
-        // Отправка в Google Sheets через Apps Script
-        async function sendToSheets(location, result) {
-            const response = await fetch(SCRIPT_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    user_id: userData.id,
-                    username: userData.username,
-                    name: `${userData.firstName} ${userData.lastName}`,
-                    latitude: location.latitude,
-                    longitude: location.longitude,
-                    accuracy: location.accuracy,
-                    status: result.status,
-                    message: result.message,
-                    delay: result.delay || 0
-                })
-            });
-            
-            return await response.json();
-        }
-        
-        // Проверка расстояния до работы (формула гаверсинуса)
+        // Расчёт расстояния
         function calculateDistance(lat1, lon1, lat2, lon2) {
             const R = 6371000;
             const φ1 = lat1 * Math.PI / 180;
@@ -335,40 +323,35 @@
             return R * c;
         }
         
-        // Основная функция отметки
+        // Основная функция
         async function checkIn() {
             const btn = document.getElementById('checkinBtn');
             const statusDiv = document.getElementById('status');
             
-            // Блокируем кнопку на время операции
             btn.classList.add('loading');
             btn.disabled = true;
             
             statusDiv.className = 'status info';
-            statusDiv.textContent = '📍 Определяем ваше местоположение...';
+            statusDiv.textContent = '📍 Определяем местоположение...';
             
             try {
-                // Получаем геолокацию
                 const location = await requestLocation();
-                
-                // Вычисляем расстояние до работы
                 const distance = calculateDistance(location.latitude, location.longitude, WORK_LAT, WORK_LNG);
                 
-                statusDiv.textContent = `📡 Расстояние до работы: ${Math.round(distance)} м`;
+                statusDiv.textContent = `📡 Расстояние: ${Math.round(distance)} м`;
                 
                 let result;
                 
-                // Проверка расстояния
                 if (distance > ALLOWED_DISTANCE) {
                     result = {
                         status: "far",
-                        message: `❌ Вы находитесь далеко от работы (${Math.round(distance)} м от офиса)\nОтметка НЕ засчитана.`,
+                        message: `❌ Вы далеко от работы (${Math.round(distance)} м)`,
                         delay: 0
                     };
                     statusDiv.className = 'status error';
                     statusDiv.textContent = result.message;
                 } else {
-                    // Проверка времени (Московское время)
+                    // Московское время
                     const now = new Date();
                     const mskOffset = 3 * 60;
                     const localOffset = now.getTimezoneOffset();
@@ -378,35 +361,25 @@
                     const minutes = mskTime.getMinutes();
                     const currentMinutes = hours * 60 + minutes;
                     const workStartMinutes = WORK_START_HOUR * 60 + WORK_START_MINUTE;
-                    
                     const delayMinutes = currentMinutes - workStartMinutes;
                     const timeStr = `${hours.toString().padStart(2,'0')}:${minutes.toString().padStart(2,'0')}`;
-                    
-                    function formatDelay(minutes) {
-                        if (minutes <= 0) return "";
-                        const hours = Math.floor(minutes / 60);
-                        const mins = minutes % 60;
-                        if (hours > 0 && mins > 0) return `${hours} ч. ${mins} мин.`;
-                        if (hours > 0) return `${hours} ч.`;
-                        return `${mins} мин.`;
-                    }
                     
                     if (delayMinutes <= 0) {
                         result = {
                             status: "ontime",
-                            message: `✅ Вы пришли на работу вовремя! (${timeStr})\nОтметка засчитана.`,
+                            message: `✅ Вовремя! (${timeStr})`,
                             delay: 0
                         };
                     } else if (delayMinutes <= 30) {
                         result = {
                             status: "late_small",
-                            message: `⚠️ Вы опоздали на ${formatDelay(delayMinutes)} (${timeStr})\nОтметка засчитана.`,
+                            message: `⚠️ Опоздание на ${delayMinutes} мин (${timeStr})`,
                             delay: delayMinutes
                         };
                     } else {
                         result = {
                             status: "late_big",
-                            message: `🔴 Вы опоздали на ${formatDelay(delayMinutes)} (${timeStr})\nОтметка засчитана.`,
+                            message: `🔴 Опоздание на ${delayMinutes} мин (${timeStr})`,
                             delay: delayMinutes
                         };
                     }
@@ -414,28 +387,33 @@
                     statusDiv.className = 'status success';
                     statusDiv.textContent = result.message;
                     
-                    // Отправляем в Google Sheets
-                    await sendToSheets(location, result);
+                    // Отправляем данные
+                    const sheetData = {
+                        user_id: userData.id,
+                        username: userData.username,
+                        name: `${userData.firstName} ${userData.lastName}`,
+                        latitude: location.latitude,
+                        longitude: location.longitude,
+                        accuracy: location.accuracy,
+                        status: result.status,
+                        delay: result.delay
+                    };
                     
-                    // Отправляем подтверждение в Telegram
+                    await sendToSheets(sheetData);
                     await sendToBot(location, result);
                 }
                 
-                // Показываем информацию о местоположении
                 const locationInfo = document.getElementById('locationInfo');
                 locationInfo.innerHTML = `
-                    <strong>📍 Информация о местоположении:</strong><br>
+                    <strong>📍 Местоположение:</strong><br>
                     Широта: ${location.latitude}<br>
                     Долгота: ${location.longitude}<br>
                     Точность: ${Math.round(location.accuracy)} м<br>
-                    Расстояние до офиса: ${Math.round(distance)} м
+                    Расстояние: ${Math.round(distance)} м
                 `;
                 locationInfo.style.display = 'block';
                 
-                // Через 3 секунды закрываем приложение
-                setTimeout(() => {
-                    tg.close();
-                }, 3000);
+                setTimeout(() => tg.close(), 3000);
                 
             } catch (error) {
                 console.error('Ошибка:', error);
@@ -447,12 +425,8 @@
             }
         }
         
-        // Обработчики событий
         document.getElementById('checkinBtn').onclick = checkIn;
         document.getElementById('closeBtn').onclick = () => tg.close();
-        
-        // Отправляем данные о готовности
-        console.log('Mini App готов к работе');
     </script>
 </body>
 </html>
