@@ -423,7 +423,17 @@
                 const callbackName = 'checkin_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
                 const script = document.createElement('script');
                 
+                // Таймаут на случай зависания
+                const timeout = setTimeout(() => {
+                    if (window[callbackName]) {
+                        delete window[callbackName];
+                        document.body.removeChild(script);
+                        reject(new Error('Превышено время ожидания'));
+                    }
+                }, 15000);
+                
                 window[callbackName] = function(response) {
+                    clearTimeout(timeout);
                     delete window[callbackName];
                     document.body.removeChild(script);
                     resolve(response);
@@ -441,9 +451,10 @@
                 
                 script.src = `${SCRIPT_URL}?callback=${callbackName}&data=${encodeURIComponent(JSON.stringify(data))}`;
                 script.onerror = () => {
+                    clearTimeout(timeout);
                     delete window[callbackName];
                     document.body.removeChild(script);
-                    reject(new Error('Ошибка отправки'));
+                    reject(new Error('Ошибка соединения'));
                 };
                 
                 document.body.appendChild(script);
@@ -513,6 +524,17 @@
             const btn = document.getElementById('checkinBtn');
             const statusDiv = document.getElementById('status');
             
+            // Проверяем, есть ли филиал
+            if (!branch || branch === 'Не выбран') {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '❌ Филиал не выбран. Пожалуйста, выберите филиал в боте через /start';
+                statusDiv.style.display = 'block';
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 5000);
+                return;
+            }
+            
             btn.classList.add('loading');
             btn.disabled = true;
             
@@ -529,44 +551,32 @@
                 if (distance > ALLOWED_DISTANCE) {
                     statusDiv.className = 'status error';
                     statusDiv.textContent = `❌ Вы далеко от филиала (${Math.round(distance)} м)`;
-                } else {
-                    // Проверка времени
-                    const now = new Date();
-                    const mskOffset = 3 * 60;
-                    const localOffset = now.getTimezoneOffset();
-                    const mskTime = new Date(now.getTime() + (mskOffset + localOffset) * 60 * 1000);
-                    const hours = mskTime.getHours();
-                    const minutes = mskTime.getMinutes();
-                    const currentMinutes = hours * 60 + minutes;
-                    const workStartMinutes = WORK_START_HOUR * 60;
-                    const delayMinutes = currentMinutes - workStartMinutes;
-                    const timeStr = `${hours.toString().padStart(2,'0')}:${minutes.toString().padStart(2,'0')}`;
-                    
-                    let resultMessage = "";
-                    if (delayMinutes <= 0) {
-                        resultMessage = `✅ Вы пришли вовремя! (${timeStr})`;
-                    } else if (delayMinutes <= 30) {
-                        resultMessage = `⚠️ Опоздание на ${delayMinutes} мин (${timeStr})`;
-                    } else {
-                        resultMessage = `🔴 Сильное опоздание на ${delayMinutes} мин (${timeStr})`;
-                    }
-                    
-                    statusDiv.textContent = resultMessage;
-                    
-                    // Отправляем данные
-                    const response = await sendCheckin(location);
-                    if (response.status === 'success') {
-                        statusDiv.className = 'status success';
-                        statusDiv.textContent = resultMessage;
-                    } else {
-                        statusDiv.className = 'status error';
-                        statusDiv.textContent = '❌ ' + (response.message || 'Ошибка отправки');
-                    }
+                    return;
                 }
                 
-                setTimeout(() => tg.close(), 3000);
+                statusDiv.textContent = '📤 Отправка данных...';
+                
+                // Отправляем данные
+                const response = await sendCheckin(location);
+                
+                if (response.status === 'success') {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = response.message;
+                    
+                    // Обновляем отображение филиала
+                    document.getElementById('branchName').textContent = branch;
+                    
+                    // Через 2 секунды закрываем
+                    setTimeout(() => {
+                        tg.close();
+                    }, 2000);
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '❌ ' + (response.message || 'Ошибка отправки');
+                }
                 
             } catch (error) {
+                console.error('Ошибка:', error);
                 statusDiv.className = 'status error';
                 statusDiv.textContent = `❌ ${error.message}`;
             } finally {
@@ -644,8 +654,20 @@
             updateDateTime();
             setInterval(updateDateTime, 1000);
             
+            // Получаем филиал из URL
+            if (BRANCH_FROM_URL) {
+                branch = BRANCH_FROM_URL;
+                document.getElementById('branchName').textContent = branch;
+            }
+            
             const isAuth = await checkAuth();
             if (isAuth) {
+                // Обновляем отображение филиала из данных пользователя
+                if (!branch && userData.branch) {
+                    branch = userData.branch;
+                    document.getElementById('branchName').textContent = branch;
+                }
+                
                 document.getElementById('checkinBtn').onclick = checkIn;
                 document.getElementById('historyBtn').onclick = showHistorySection;
                 document.getElementById('backBtn').onclick = showCheckinSection;
