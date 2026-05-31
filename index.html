@@ -172,9 +172,23 @@
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
-        // Конфигурация
-        const BOT_TOKEN = '7197499100:AAHmbsP6c4ZPA85s0uYVUHbfZ2nrIHKPG8k'; // Замените на новый токен!
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyYUXV-a5BR-Ma_mFTz7855k8AITi420dysWRwJmAYDPUgfKsrAA-AA3ByMIpiNYuJo1Q/exec'; // URL вашего Apps Script
+        // ========== КОНФИГУРАЦИЯ (ЗАМЕНИТЕ НА СВОИ ЗНАЧЕНИЯ!) ==========
+        // 1. ЗАМЕНИТЕ токен бота (получите новый в @BotFather)
+        const BOT_TOKEN = 'НОВЫЙ_ТОКЕН_БОТА';
+        
+        // 2. Укажите URL вашего Apps Script после публикации
+        const SCRIPT_URL = 'https://script.google.com/macros/s/ВАШ_ID/exec';
+        
+        // 3. Укажите КООРДИНАТЫ ВАШЕГО ОФИСА
+        const WORK_LAT = 43.29878;   // Ваша широта
+        const WORK_LNG = 45.84382;   // Ваша долгота
+        const ALLOWED_DISTANCE = 200; // Допустимое расстояние в метрах
+        
+        // 4. Настройки рабочего времени
+        const WORK_START_HOUR = 9;    // Начало работы (9:00)
+        const WORK_START_MINUTE = 0;
+        const ALLOWED_BUFFER_MINUTES = 30; // Можно отметиться за 30 мин до начала
+        // ================================================================
         
         // Инициализация Telegram Web App
         const tg = window.Telegram.WebApp;
@@ -183,15 +197,22 @@
         
         // Данные пользователя
         let userData = {
-            id: tg.initDataUnsafe.user?.id || 123456789,
+            id: tg.initDataUnsafe.user?.id || null,
             username: tg.initDataUnsafe.user?.username || "Нет username",
             firstName: tg.initDataUnsafe.user?.first_name || "Пользователь",
             lastName: tg.initDataUnsafe.user?.last_name || ""
         };
         
-        // Отображаем информацию о пользователе
-        document.getElementById('userName').textContent = `${userData.firstName} ${userData.lastName}`;
-        document.getElementById('userId').textContent = userData.id;
+        // Проверка, что пользователь авторизован в Telegram
+        if (!userData.id) {
+            document.getElementById('userName').textContent = "Ошибка авторизации";
+            document.getElementById('userId').textContent = "Не удалось получить данные";
+            document.getElementById('checkinBtn').disabled = true;
+            alert("Пожалуйста, откройте это приложение через Telegram бота");
+        } else {
+            document.getElementById('userName').textContent = `${userData.firstName} ${userData.lastName}`;
+            document.getElementById('userId').textContent = userData.id;
+        }
         
         // Обновляем время
         function updateDateTime() {
@@ -230,13 +251,13 @@
                         let errorMessage = '';
                         switch(error.code) {
                             case error.PERMISSION_DENIED:
-                                errorMessage = 'Доступ к геолокации запрещён';
+                                errorMessage = 'Доступ к геолокации запрещён. Разрешите доступ в настройках браузера';
                                 break;
                             case error.POSITION_UNAVAILABLE:
                                 errorMessage = 'Информация о местоположении недоступна';
                                 break;
                             case error.TIMEOUT:
-                                errorMessage = 'Время ожидания истекло';
+                                errorMessage = 'Время ожидания истекло. Попробуйте ещё раз';
                                 break;
                             default:
                                 errorMessage = 'Ошибка определения местоположения';
@@ -248,23 +269,31 @@
             });
         }
         
-        // Отправка данных в бот
-        async function sendToBot(location) {
-            const text = `✅ Новая отметка!\n\n👤 Пользователь: ${userData.firstName} ${userData.lastName}\n🆔 ID: ${userData.id}\n📍 Координаты: ${location.latitude}, ${location.longitude}\n📊 Точность: ${Math.round(location.accuracy)} м\n⏰ Время: ${new Date().toLocaleString('ru-RU')}`;
-            
-            const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    chat_id: userData.id,
-                    text: text,
-                    parse_mode: 'HTML'
-                })
-            });
-            
-            return await response.json();
+        // Отправка данных в бот (для подтверждения пользователю)
+        async function sendToBot(location, result) {
+            try {
+                const text = `✅ <b>Новая отметка!</b>\n\n` +
+                    `👤 <b>Пользователь:</b> ${userData.firstName} ${userData.lastName}\n` +
+                    `🆔 <b>ID:</b> ${userData.id}\n` +
+                    `📍 <b>Координаты:</b> ${location.latitude}, ${location.longitude}\n` +
+                    `📊 <b>Точность:</b> ${Math.round(location.accuracy)} м\n` +
+                    `<b>Результат:</b> ${result.message}\n` +
+                    `⏰ <b>Время:</b> ${new Date().toLocaleString('ru-RU')}`;
+                
+                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        chat_id: userData.id,
+                        text: text,
+                        parse_mode: 'HTML'
+                    })
+                });
+            } catch (error) {
+                console.error('Ошибка отправки в бот:', error);
+            }
         }
         
         // Отправка в Google Sheets через Apps Script
@@ -282,14 +311,15 @@
                     longitude: location.longitude,
                     accuracy: location.accuracy,
                     status: result.status,
-                    message: result.message
+                    message: result.message,
+                    delay: result.delay || 0
                 })
             });
             
             return await response.json();
         }
         
-        // Проверка расстояния до работы
+        // Проверка расстояния до работы (формула гаверсинуса)
         function calculateDistance(lat1, lon1, lat2, lon2) {
             const R = 6371000;
             const φ1 = lat1 * Math.PI / 180;
@@ -310,6 +340,7 @@
             const btn = document.getElementById('checkinBtn');
             const statusDiv = document.getElementById('status');
             
+            // Блокируем кнопку на время операции
             btn.classList.add('loading');
             btn.disabled = true;
             
@@ -320,49 +351,63 @@
                 // Получаем геолокацию
                 const location = await requestLocation();
                 
-                // Координаты работы (Москва)
-                const WORK_LAT = 55.751244;
-                const WORK_LNG = 37.618423;
-                const ALLOWED_DISTANCE = 500; // метров
-                
-                // Вычисляем расстояние
+                // Вычисляем расстояние до работы
                 const distance = calculateDistance(location.latitude, location.longitude, WORK_LAT, WORK_LNG);
                 
                 statusDiv.textContent = `📡 Расстояние до работы: ${Math.round(distance)} м`;
                 
                 let result;
                 
+                // Проверка расстояния
                 if (distance > ALLOWED_DISTANCE) {
                     result = {
                         status: "far",
-                        message: `❌ Вы находитесь далеко от работы (${Math.round(distance)} м)`
+                        message: `❌ Вы находитесь далеко от работы (${Math.round(distance)} м от офиса)\nОтметка НЕ засчитана.`,
+                        delay: 0
                     };
                     statusDiv.className = 'status error';
                     statusDiv.textContent = result.message;
                 } else {
-                    // Проверка времени
+                    // Проверка времени (Московское время)
                     const now = new Date();
-                    const hours = now.getHours();
-                    const minutes = now.getMinutes();
+                    const mskOffset = 3 * 60;
+                    const localOffset = now.getTimezoneOffset();
+                    const mskTime = new Date(now.getTime() + (mskOffset + localOffset) * 60 * 1000);
+                    
+                    const hours = mskTime.getHours();
+                    const minutes = mskTime.getMinutes();
                     const currentMinutes = hours * 60 + minutes;
-                    const workStartMinutes = 9 * 60; // 9:00
+                    const workStartMinutes = WORK_START_HOUR * 60 + WORK_START_MINUTE;
                     
                     const delayMinutes = currentMinutes - workStartMinutes;
+                    const timeStr = `${hours.toString().padStart(2,'0')}:${minutes.toString().padStart(2,'0')}`;
+                    
+                    function formatDelay(minutes) {
+                        if (minutes <= 0) return "";
+                        const hours = Math.floor(minutes / 60);
+                        const mins = minutes % 60;
+                        if (hours > 0 && mins > 0) return `${hours} ч. ${mins} мин.`;
+                        if (hours > 0) return `${hours} ч.`;
+                        return `${mins} мин.`;
+                    }
                     
                     if (delayMinutes <= 0) {
                         result = {
                             status: "ontime",
-                            message: `✅ Вы пришли вовремя! (${hours}:${minutes.toString().padStart(2,'0')})`
+                            message: `✅ Вы пришли на работу вовремя! (${timeStr})\nОтметка засчитана.`,
+                            delay: 0
                         };
                     } else if (delayMinutes <= 30) {
                         result = {
                             status: "late_small",
-                            message: `⚠️ Опоздание на ${delayMinutes} мин (${hours}:${minutes.toString().padStart(2,'0')})`
+                            message: `⚠️ Вы опоздали на ${formatDelay(delayMinutes)} (${timeStr})\nОтметка засчитана.`,
+                            delay: delayMinutes
                         };
                     } else {
                         result = {
                             status: "late_big",
-                            message: `🔴 Сильное опоздание на ${delayMinutes} мин (${hours}:${minutes.toString().padStart(2,'0')})`
+                            message: `🔴 Вы опоздали на ${formatDelay(delayMinutes)} (${timeStr})\nОтметка засчитана.`,
+                            delay: delayMinutes
                         };
                     }
                     
@@ -373,7 +418,7 @@
                     await sendToSheets(location, result);
                     
                     // Отправляем подтверждение в Telegram
-                    await sendToBot(location);
+                    await sendToBot(location, result);
                 }
                 
                 // Показываем информацию о местоположении
@@ -383,7 +428,7 @@
                     Широта: ${location.latitude}<br>
                     Долгота: ${location.longitude}<br>
                     Точность: ${Math.round(location.accuracy)} м<br>
-                    Расстояние до работы: ${Math.round(distance)} м
+                    Расстояние до офиса: ${Math.round(distance)} м
                 `;
                 locationInfo.style.display = 'block';
                 
