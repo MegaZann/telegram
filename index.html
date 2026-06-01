@@ -1,696 +1,713 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Work Check-in Bot</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        
-        .container {
-            background: white;
-            border-radius: 20px;
-            padding: 20px;
-            max-width: 500px;
-            margin: 0 auto;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #f0f0f0;
-        }
-        
-        .header h1 {
-            color: #333;
-            font-size: 24px;
-            margin-bottom: 5px;
-        }
-        
-        .header p {
-            color: #666;
-            font-size: 14px;
-        }
-        
-        .user-info {
-            background: #f5f5f5;
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .user-info p {
-            margin: 5px 0;
-            font-size: 14px;
-        }
-        
-        .label {
-            font-weight: bold;
-            color: #666;
-        }
-        
-        .value {
-            color: #333;
-        }
-        
-        .stats {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            gap: 10px;
-        }
-        
-        .stat-card {
-            flex: 1;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 15px;
-            border-radius: 12px;
-            text-align: center;
-        }
-        
-        .stat-card .number {
-            font-size: 28px;
-            font-weight: bold;
-        }
-        
-        .stat-card .label {
-            font-size: 12px;
-            opacity: 0.9;
-            color: white;
-        }
-        
-        .month-selector {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            gap: 10px;
-        }
-        
-        .month-btn {
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: transform 0.2s;
-        }
-        
-        .month-btn:active {
-            transform: scale(0.95);
-        }
-        
-        .current-month {
-            font-size: 18px;
-            font-weight: bold;
-            color: #333;
-        }
-        
-        .table-container {
-            overflow-x: auto;
-            margin-bottom: 20px;
-            max-height: 400px;
-            overflow-y: auto;
-            border-radius: 12px;
-            border: 1px solid #e0e0e0;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
-        }
-        
-        th {
-            background: #f8f9fa;
-            font-weight: bold;
-            color: #555;
-            position: sticky;
-            top: 0;
-            padding: 12px;
-            text-align: left;
-            border-bottom: 2px solid #e0e0e0;
-        }
-        
-        td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #e0e0e0;
-            vertical-align: middle;
-        }
-        
-        /* Стили для статусов */
-        .ontime {
-            color: #28a745;
-            font-weight: bold;
-        }
-        
-        .late-small {
-            color: #ffc107;
-            font-weight: bold;
-        }
-        
-        .late-big {
-            color: #dc3545;
-            font-weight: bold;
-        }
-        
-        .far {
-            color: #6c757d;
-        }
-        
-        .checkin-btn, .history-btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 12px;
-            width: 100%;
-            cursor: pointer;
-            margin-bottom: 10px;
-            transition: transform 0.2s;
-        }
-        
-        .history-btn {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-        }
-        
-        .checkin-btn:active, .history-btn:active {
-            transform: scale(0.98);
-        }
-        
-        .checkin-btn.loading, .history-btn.loading {
-            opacity: 0.7;
-            cursor: not-allowed;
-        }
-        
-        .status {
-            margin-top: 15px;
-            padding: 12px;
-            border-radius: 12px;
-            text-align: center;
-            font-size: 14px;
-            display: none;
-        }
-        
-        .status.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-            display: block;
-        }
-        
-        .status.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-            display: block;
-        }
-        
-        .status.info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-            display: block;
-        }
-        
-        .no-data {
-            text-align: center;
-            padding: 30px;
-            color: #999;
-        }
-        
-        .close-btn {
-            margin-top: 10px;
-            background: #6c757d;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            width: 100%;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        
-        .section {
-            display: none;
-        }
-        
-        .section.active {
-            display: block;
-        }
-        
-        @media (max-width: 480px) {
-            .container {
-                padding: 15px;
-            }
-            th, td {
-                padding: 8px;
-                font-size: 12px;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Work Check-in Bot</title>
+<style>
+* {
+margin: 0;
+padding: 0;
+box-sizing: border-box;
+}
+
+body {
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+min-height: 100vh;
+padding: 20px;
+}
+
+.container {
+background: white;
+border-radius: 20px;
+padding: 20px;
+max-width: 500px;
+margin: 0 auto;
+box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+}
+
+.header {
+text-align: center;
+margin-bottom: 20px;
+padding-bottom: 15px;
+border-bottom: 2px solid #f0f0f0;
+}
+
+.header h1 {
+color: #333;
+font-size: 24px;
+margin-bottom: 5px;
+}
+
+.header p {
+color: #666;
+font-size: 14px;
+}
+
+.user-info {
+background: #f5f5f5;
+border-radius: 12px;
+padding: 15px;
+margin-bottom: 20px;
+}
+
+.user-info p {
+margin: 5px 0;
+font-size: 14px;
+}
+
+.label {
+font-weight: bold;
+color: #666;
+}
+
+.value {
+color: #333;
+}
+
+.stats {
+display: flex;
+justify-content: space-between;
+margin-bottom: 20px;
+gap: 10px;
+}
+
+.stat-card {
+flex: 1;
+background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+color: white;
+padding: 15px;
+border-radius: 12px;
+text-align: center;
+}
+
+.stat-card .number {
+font-size: 28px;
+font-weight: bold;
+}
+
+.stat-card .label {
+font-size: 12px;
+opacity: 0.9;
+color: white;
+}
+
+.month-selector {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 15px;
+gap: 10px;
+}
+
+.month-btn {
+background: #667eea;
+color: white;
+border: none;
+padding: 8px 15px;
+border-radius: 8px;
+cursor: pointer;
+font-size: 14px;
+}
+
+.month-btn:active {
+transform: scale(0.95);
+}
+
+.current-month {
+font-size: 18px;
+font-weight: bold;
+color: #333;
+}
+
+.table-container {
+overflow-x: auto;
+margin-bottom: 20px;
+max-height: 400px;
+overflow-y: auto;
+}
+
+table {
+width: 100%;
+border-collapse: collapse;
+font-size: 14px;
+}
+
+th, td {
+padding: 10px;
+text-align: left;
+border-bottom: 1px solid #e0e0e0;
+}
+
+th {
+background: #f8f9fa;
+font-weight: bold;
+color: #555;
+position: sticky;
+top: 0;
+}
+
+.ontime {
+color: #28a745;
+font-weight: bold;
+}
+
+.late-small {
+color: #ffc107;
+font-weight: bold;
+}
+
+.late-big {
+color: #dc3545;
+font-weight: bold;
+}
+
+.far {
+color: #6c757d;
+}
+
+.checkin-btn, .history-btn {
+background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+color: white;
+border: none;
+padding: 15px 30px;
+font-size: 16px;
+font-weight: bold;
+border-radius: 12px;
+width: 100%;
+cursor: pointer;
+margin-bottom: 10px;
+transition: transform 0.2s;
+}
+
+.history-btn {
+background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+}
+
+.checkin-btn:active, .history-btn:active {
+transform: scale(0.98);
+}
+
+.checkin-btn.loading, .history-btn.loading {
+opacity: 0.7;
+cursor: not-allowed;
+}
+
+.status {
+margin-top: 15px;
+padding: 12px;
+border-radius: 12px;
+text-align: center;
+font-size: 14px;
+display: none;
+}
+
+.status.success {
+background: #d4edda;
+color: #155724;
+border: 1px solid #c3e6cb;
+display: block;
+}
+
+.status.error {
+background: #f8d7da;
+color: #721c24;
+border: 1px solid #f5c6cb;
+display: block;
+}
+
+.status.info {
+background: #d1ecf1;
+color: #0c5460;
+border: 1px solid #bee5eb;
+display: block;
+}
+
+.no-data {
+text-align: center;
+padding: 30px;
+color: #999;
+}
+
+.close-btn {
+margin-top: 10px;
+background: #6c757d;
+color: white;
+border: none;
+padding: 10px 20px;
+border-radius: 8px;
+width: 100%;
+cursor: pointer;
+font-size: 14px;
+}
+
+.section {
+display: none;
+}
+
+.section.active {
+display: block;
+}
+
+@media (max-width: 480px) {
+.container {
+padding: 15px;
+}
+th, td {
+padding: 8px;
+font-size: 12px;
+}
+}
+</style>
 </head>
 <body>
-    <div class="container">
-        <div id="checkinSection" class="section active">
-            <div class="header">
-                <h1>📍 Отметка на работе</h1>
-                <p>Отметьте своё прибытие</p>
-            </div>
-            
-            <div class="user-info">
-                <p><span class="label">👤 Имя:</span> <span class="value" id="userName">Загрузка...</span></p>
-                <p><span class="label">🏢 Филиал:</span> <span class="value" id="branchName">Загрузка...</span></p>
-                <p><span class="label">📅 Дата:</span> <span class="value" id="currentDate">Загрузка...</span></p>
-                <p><span class="label">⏰ Время:</span> <span class="value" id="currentTime">Загрузка...</span></p>
-            </div>
-            
-            <button class="checkin-btn" id="checkinBtn">📍 Отметиться</button>
-            <button class="history-btn" id="historyBtn">📋 Мои отметки</button>
-            
-            <div id="status" class="status"></div>
-            
-            <button class="close-btn" id="closeBtn">Закрыть</button>
-        </div>
-        
-        <div id="historySection" class="section">
-            <div class="header">
-                <h1>📋 Мои отметки</h1>
-                <p>История посещений</p>
-            </div>
-            
-            <div class="stats" id="statsContainer"></div>
-            
-            <div class="month-selector">
-                <button class="month-btn" id="prevMonth">◀</button>
-                <span class="current-month" id="currentMonth">Загрузка...</span>
-                <button class="month-btn" id="nextMonth">▶</button>
-            </div>
-            
-            <div class="table-container" id="tableContainer">
-                <div class="no-data">Загрузка данных...</div>
-            </div>
-            
-            <button class="checkin-btn" id="backBtn">📍 Назад к отметке</button>
-            <button class="close-btn" id="closeHistoryBtn">Закрыть</button>
-        </div>
-    </div>
-    
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script>
-        const SCRIPT_URL = window.location.origin + window.location.pathname;
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        const BRANCH_FROM_URL = urlParams.get('branch') || '';
-        const WORK_LAT = parseFloat(urlParams.get('lat')) || 43.29878;
-        const WORK_LNG = parseFloat(urlParams.get('lng')) || 45.84382;
-        const ALLOWED_DISTANCE = parseInt(urlParams.get('radius')) || 300;
-        
-        const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
-        
-        let userData = {
-            id: tg.initDataUnsafe.user?.id || null,
-            username: tg.initDataUnsafe.user?.username || "Нет username",
-            firstName: tg.initDataUnsafe.user?.first_name || "Пользователь",
-            lastName: tg.initDataUnsafe.user?.last_name || ""
-        };
-        
-        let branch = BRANCH_FROM_URL;
-        let currentMonth = new Date().getMonth();
-        let currentYear = new Date().getFullYear();
-        
-        // Функция JSONP запроса
-        function jsonpRequest(params) {
-            return new Promise((resolve, reject) => {
-                const callbackName = 'jsonp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                const script = document.createElement('script');
-                
-                const timeout = setTimeout(() => {
-                    if (window[callbackName]) {
-                        delete window[callbackName];
-                        if (script.parentNode) script.parentNode.removeChild(script);
-                        reject(new Error('Превышено время ожидания'));
-                    }
-                }, 30000);
-                
-                window[callbackName] = function(response) {
-                    clearTimeout(timeout);
-                    delete window[callbackName];
-                    if (script.parentNode) script.parentNode.removeChild(script);
-                    resolve(response);
-                };
-                
-                let url = SCRIPT_URL + '?callback=' + callbackName;
-                for (let key in params) {
-                    url += '&' + key + '=' + encodeURIComponent(params[key]);
-                }
-                
-                script.src = url;
-                script.onerror = () => {
-                    clearTimeout(timeout);
-                    delete window[callbackName];
-                    if (script.parentNode) script.parentNode.removeChild(script);
-                    reject(new Error('Ошибка соединения'));
-                };
-                
-                document.body.appendChild(script);
-            });
-        }
-        
-        async function getUserInfo() {
-            return jsonpRequest({
-                action: 'getUserInfo',
-                user_id: userData.id
-            });
-        }
-        
-        async function getHistory(user_id, year, month) {
-            return jsonpRequest({
-                action: 'getHistory',
-                user_id: user_id,
-                year: year,
-                month: month + 1
-            });
-        }
-        
-        async function sendCheckin(location) {
-            try {
-                const response = await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        user_id: userData.id,
-                        username: userData.username,
-                        name: `${userData.firstName} ${userData.lastName}`.trim(),
-                        latitude: location.latitude,
-                        longitude: location.longitude,
-                        accuracy: location.accuracy || 0,
-                        branch: branch
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                
-                return await response.json();
-            } catch (error) {
-                console.error('POST ошибка:', error);
-                throw error;
-            }
-        }
-        
-        function requestLocation() {
-            return new Promise((resolve, reject) => {
-                if (!navigator.geolocation) {
-                    reject(new Error('Геолокация не поддерживается'));
-                    return;
-                }
-                
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        resolve({
-                            latitude: position.coords.latitude,
-                            longitude: position.coords.longitude,
-                            accuracy: position.coords.accuracy
-                        });
-                    },
-                    (error) => {
-                        let errorMessage = '';
-                        switch(error.code) {
-                            case error.PERMISSION_DENIED:
-                                errorMessage = 'Доступ к геолокации запрещён';
-                                break;
-                            case error.POSITION_UNAVAILABLE:
-                                errorMessage = 'Местоположение недоступно';
-                                break;
-                            case error.TIMEOUT:
-                                errorMessage = 'Время ожидания истекло';
-                                break;
-                            default:
-                                errorMessage = 'Ошибка определения местоположения';
-                        }
-                        reject(new Error(errorMessage));
-                    },
-                    { enableHighAccuracy: true, timeout: 10000 }
-                );
-            });
-        }
-        
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371000;
-            const φ1 = lat1 * Math.PI / 180;
-            const φ2 = lat2 * Math.PI / 180;
-            const Δφ = (lat2 - lat1) * Math.PI / 180;
-            const Δλ = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                      Math.cos(φ1) * Math.cos(φ2) *
-                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        }
-        
-        function updateDateTime() {
-            const now = new Date();
-            document.getElementById('currentDate').textContent = now.toLocaleDateString('ru-RU');
-            document.getElementById('currentTime').textContent = now.toLocaleTimeString('ru-RU');
-        }
-        
-        async function checkIn() {
-            const btn = document.getElementById('checkinBtn');
-            const statusDiv = document.getElementById('status');
+<div class="container">
+<div id="checkinSection" class="section active">
+<div class="header">
+<h1>📍 Отметка на работе</h1>
+<p>Отметьте своё прибытие</p>
+</div>
 
-            if (btn.disabled) return;
-            
-            if (!branch || branch === 'Не выбран' || branch === '') {
-                statusDiv.className = 'status error';
-                statusDiv.textContent = '❌ Филиал не выбран. Выберите филиал в боте через /start';
-                statusDiv.style.display = 'block';
-                setTimeout(() => { statusDiv.style.display = 'none'; }, 5000);
-                return;
-            }
-            
-            btn.classList.add('loading');
-            btn.disabled = true;
-            
-            statusDiv.className = 'status info';
-            statusDiv.textContent = '📍 Определяем местоположение...';
-            statusDiv.style.display = 'block';
-            
-            try {
-                const location = await requestLocation();
-                const distance = calculateDistance(location.latitude, location.longitude, WORK_LAT, WORK_LNG);
-                
-                statusDiv.textContent = `📡 Расстояние до филиала: ${Math.round(distance)} м`;
-                
-                if (distance > ALLOWED_DISTANCE) {
-                    statusDiv.className = 'status error';
-                    statusDiv.textContent = `❌ Вы далеко от филиала (${Math.round(distance)} м)`;
-                    btn.disabled = false;
-                    btn.classList.remove('loading');
-                    return;
-                }
-                
-                statusDiv.textContent = '📤 Отправка данных...';
-        
-                const response = await sendCheckin(location);
-                
-                if (response.status === 'success') {
-                    statusDiv.className = 'status success';
-                    statusDiv.textContent = response.message;
-                    
-                    setTimeout(() => {
-                        if (typeof tg !== 'undefined') {
-                            tg.close();
-                        }
-                    }, 2000);
-                } else {
-                    statusDiv.className = 'status error';
-                    statusDiv.textContent = '❌ ' + (response.message || 'Ошибка отправки');
-                    btn.disabled = false;
-                    btn.classList.remove('loading');
-                }
-                
-            } catch (error) {
-                statusDiv.className = 'status error';
-                statusDiv.textContent = `❌ ${error.message}`;
-                btn.disabled = false;
-                btn.classList.remove('loading');
-            }
-        }
-        
+<div class="user-info">
+<p><span class="label">👤 Имя:</span> <span class="value" id="userName">Загрузка...</span></p>
+<p><span class="label">🏢 Филиал:</span> <span class="value" id="branchName">Загрузка...</span></p>
+<p><span class="label">📅 Дата:</span> <span class="value" id="currentDate">Загрузка...</span></p>
+<p><span class="label">⏰ Время:</span> <span class="value" id="currentTime">Загрузка...</span></p>
+</div>
+
+<button class="checkin-btn" id="checkinBtn">📍 Отметиться</button>
+<button class="history-btn" id="historyBtn">📋 Мои отметки</button>
+
+<div id="status" class="status"></div>
+
+<button class="close-btn" id="closeBtn">Закрыть</button>
+</div>
+
+<div id="historySection" class="section">
+<div class="header">
+<h1>📋 Мои отметки</h1>
+<p>История посещений</p>
+</div>
+
+<div class="stats" id="statsContainer"></div>
+
+<div class="month-selector">
+<button class="month-btn" id="prevMonth">◀</button>
+<span class="current-month" id="currentMonth">Загрузка...</span>
+<button class="month-btn" id="nextMonth">▶</button>
+</div>
+
+<div class="table-container" id="tableContainer">
+<div class="no-data">Загрузка данных...</div>
+</div>
+
+<button class="checkin-btn" id="backBtn">📍 Назад к отметке</button>
+<button class="close-btn" id="closeHistoryBtn">Закрыть</button>
+</div>
+</div>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxTtPp3dF5BW1oJeQO_1Kz3VzTj_DWhwhs69qZh-q-RMwQgeamONdCTvzMcFhs4qE0m7w/exec';
+
+const urlParams = new URLSearchParams(window.location.search);
+const BRANCH_FROM_URL = urlParams.get('branch') || '';
+const WORK_LAT = parseFloat(urlParams.get('lat')) || 43.29878;
+const WORK_LNG = parseFloat(urlParams.get('lng')) || 45.84382;
+const ALLOWED_DISTANCE = parseInt(urlParams.get('radius')) || 300;
+
+const tg = window.Telegram.WebApp;
+tg.ready();
+tg.expand();
+
+let userData = {
+id: tg.initDataUnsafe.user?.id || null,
+username: tg.initDataUnsafe.user?.username || "Нет username",
+firstName: tg.initDataUnsafe.user?.first_name || "Пользователь",
+lastName: tg.initDataUnsafe.user?.last_name || ""
+};
+
+let branch = BRANCH_FROM_URL;
+let currentMonth = new Date().getMonth();
+let currentYear = new Date().getFullYear();
+
+// Универсальная функция JSONP запроса
+function jsonpRequest(params) {
+return new Promise((resolve, reject) => {
+const callbackName = 'jsonp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+const script = document.createElement('script');
+
+const timeout = setTimeout(() => {
+if (window[callbackName]) {
+delete window[callbackName];
+if (script.parentNode) script.parentNode.removeChild(script);
+reject(new Error('Превышено время ожидания'));
+}
+}, 15000);
+
+window[callbackName] = function(response) {
+clearTimeout(timeout);
+delete window[callbackName];
+if (script.parentNode) script.parentNode.removeChild(script);
+resolve(response);
+};
+
+let url = SCRIPT_URL + '?callback=' + callbackName;
+for (let key in params) {
+url += '&' + key + '=' + encodeURIComponent(params[key]);
+}
+
+script.src = url;
+script.onerror = () => {
+clearTimeout(timeout);
+delete window[callbackName];
+if (script.parentNode) script.parentNode.removeChild(script);
+reject(new Error('Ошибка соединения'));
+};
+
+document.body.appendChild(script);
+});
+}
+
+async function getUserInfo() {
+return jsonpRequest({
+action: 'getUserInfo',
+user_id: userData.id
+});
+}
+
+async function getHistory(user_id, year, month) {
+return jsonpRequest({
+action: 'getHistory',
+user_id: user_id,
+year: year,
+month: month + 1
+});
+}
+
+async function sendCheckin(location) {
+return new Promise((resolve, reject) => {
+const callbackName = 'checkin_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+const script = document.createElement('script');
+
+const timeout = setTimeout(() => {
+if (window[callbackName]) {
+delete window[callbackName];
+if (script.parentNode) script.parentNode.removeChild(script);
+reject(new Error('Превышено время ожидания'));
+}
+}, 15000);
+
+window[callbackName] = function(response) {
+clearTimeout(timeout);
+delete window[callbackName];
+if (script.parentNode) script.parentNode.removeChild(script);
+resolve(response);
+};
+
+// Создаем URL для JSONP запроса
+let url = SCRIPT_URL + '?callback=' + callbackName + 
+'&user_id=' + encodeURIComponent(userData.id) +
+'&username=' + encodeURIComponent(userData.username) +
+'&name=' + encodeURIComponent(`${userData.firstName} ${userData.lastName}`) +
+'&latitude=' + encodeURIComponent(location.latitude) +
+'&longitude=' + encodeURIComponent(location.longitude) +
+'&accuracy=' + encodeURIComponent(location.accuracy) +
+'&branch=' + encodeURIComponent(branch);
+
+script.src = url;
+script.onerror = () => {
+clearTimeout(timeout);
+delete window[callbackName];
+if (script.parentNode) script.parentNode.removeChild(script);
+reject(new Error('Ошибка соединения'));
+};
+
+document.body.appendChild(script);
+});
+}
+
+function requestLocation() {
+return new Promise((resolve, reject) => {
+if (!navigator.geolocation) {
+reject(new Error('Геолокация не поддерживается'));
+return;
+}
+
+navigator.geolocation.getCurrentPosition(
+(position) => {
+resolve({
+latitude: position.coords.latitude,
+longitude: position.coords.longitude,
+accuracy: position.coords.accuracy
+});
+},
+(error) => {
+let errorMessage = '';
+switch(error.code) {
+case error.PERMISSION_DENIED:
+errorMessage = 'Доступ к геолокации запрещён';
+break;
+case error.POSITION_UNAVAILABLE:
+errorMessage = 'Местоположение недоступно';
+break;
+case error.TIMEOUT:
+errorMessage = 'Время ожидания истекло';
+break;
+default:
+errorMessage = 'Ошибка определения местоположения';
+}
+reject(new Error(errorMessage));
+},
+{ enableHighAccuracy: true, timeout: 10000 }
+);
+});
+}
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+const R = 6371000;
+const φ1 = lat1 * Math.PI / 180;
+const φ2 = lat2 * Math.PI / 180;
+const Δφ = (lat2 - lat1) * Math.PI / 180;
+const Δλ = (lon2 - lon1) * Math.PI / 180;
+const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+Math.cos(φ1) * Math.cos(φ2) *
+Math.sin(Δλ/2) * Math.sin(Δλ/2);
+return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function updateDateTime() {
+const now = new Date();
+document.getElementById('currentDate').textContent = now.toLocaleDateString('ru-RU');
+document.getElementById('currentTime').textContent = now.toLocaleTimeString('ru-RU');
+}
+
+async function checkIn() {
+const btn = document.getElementById('checkinBtn');
+const statusDiv = document.getElementById('status');
+
+if (btn.disabled) return;
+
+if (!branch || branch === 'Не выбран' || branch === '') {
+statusDiv.className = 'status error';
+statusDiv.textContent = '❌ Филиал не выбран. Выберите филиал в боте через /start';
+statusDiv.style.display = 'block';
+setTimeout(() => { statusDiv.style.display = 'none'; }, 5000);
+return;
+}
+
+btn.classList.add('loading');
+btn.disabled = true;
+
+statusDiv.className = 'status info';
+statusDiv.textContent = '📍 Определяем местоположение...';
+statusDiv.style.display = 'block';
+
+try {
+const location = await requestLocation();
+const distance = calculateDistance(location.latitude, location.longitude, WORK_LAT, WORK_LNG);
+
+statusDiv.textContent = `📡 Расстояние до филиала: ${Math.round(distance)} м`;
+
+if (distance > ALLOWED_DISTANCE) {
+statusDiv.className = 'status error';
+statusDiv.textContent = `❌ Вы далеко от филиала (${Math.round(distance)} м)`;
+return;
+}
+
+statusDiv.textContent = '📤 Отправка данных...';
+
+const response = await sendCheckin(location);
+
+// ВАЖНО: проверяем, что ответ получен и закрываем приложение
+if (response.status === 'success') {
+statusDiv.className = 'status success';
+statusDiv.textContent = response.message;
+
+// Закрываем через 2 секунды
+setTimeout(() => {
+if (typeof tg !== 'undefined') {
+tg.close();
+}
+}, 2000);
+} else {
+statusDiv.className = 'status error';
+statusDiv.textContent = '❌ ' + (response.message || 'Ошибка отправки');
+btn.disabled = false; // Разблокируем кнопку при ошибке
+btn.classList.remove('loading');
+}
+
+} catch (error) {
+statusDiv.className = 'status error';
+statusDiv.textContent = `❌ ${error.message}`;
+btn.disabled = false;
+btn.classList.remove('loading');
+}
+// Не снимаем блокировку при успехе, чтобы нельзя было отправить повторно
+}
+
         async function loadHistory() {
             const tableContainer = document.getElementById('tableContainer');
             const statsContainer = document.getElementById('statsContainer');
-            
+async function loadHistory() {
+    const tableContainer = document.getElementById('tableContainer');
+    const statsContainer = document.getElementById('statsContainer');
+    
+    tableContainer.innerHTML = '<div class="no-data">Загрузка данных...</div>';
+    
+    try {
+        const data = await getHistory(userData.id, currentYear, currentMonth);
+        
+        // Добавим отладку - посмотрим что приходит с сервера
+        console.log('Полученные данные:', data);
+        
+        if (data.status === 'success' && data.records && data.records.length > 0) {
+            const stats = data.stats;
+            statsContainer.innerHTML = `
+                <div class="stat-card"><div class="number">${stats.total}</div><div class="label">Всего дней</div></div>
+                <div class="stat-card"><div class="number">${stats.ontime}</div><div class="label">Вовремя</div></div>
+                <div class="stat-card"><div class="number">${stats.late}</div><div class="label">Опоздания</div></div>
+            `;
+
             tableContainer.innerHTML = '<div class="no-data">Загрузка данных...</div>';
-            
+            // СОЗДАЕМ ТАБЛИЦУ С 3 КОЛОНКАМИ
+            let tableHtml = '<table><thead>' +
+                           '<tr>' +
+                           '<th>📅 Дата</th>' +
+                           '<th>📊 Статус</th>' +
+                           '<th>⏰ Опоздание</th>' +
+                           '</tr>' +
+                           '</thead><tbody>';
+
             try {
                 const data = await getHistory(userData.id, currentYear, currentMonth);
-                
-                console.log('Полученные данные:', data);
-                
+            data.records.forEach(record => {
+                // Определяем текст статуса и класс
+                let statusText = '';
+                let statusClass = '';
+                let delayText = '';
+
                 if (data.status === 'success' && data.records && data.records.length > 0) {
                     const stats = data.stats;
                     statsContainer.innerHTML = `
-                        <div class="stat-card"><div class="number">${stats.total || 0}</div><div class="label">Всего дней</div></div>
-                        <div class="stat-card"><div class="number">${stats.ontime || 0}</div><div class="label">Вовремя</div></div>
-                        <div class="stat-card"><div class="number">${stats.late || 0}</div><div class="label">Опоздания</div></div>
+                        <div class="stat-card"><div class="number">${stats.total}</div><div class="label">Всего дней</div></div>
+                        <div class="stat-card"><div class="number">${stats.ontime}</div><div class="label">Вовремя</div></div>
+                        <div class="stat-card"><div class="number">${stats.late}</div><div class="label">Опоздания</div></div>
                     `;
                     
-                    // СОЗДАЕМ ТАБЛИЦУ С 3 КОЛОНКАМИ
-                    let tableHtml = '<table>' +
-                                   '<thead>' +
-                                   '<tr>' +
-                                   '<th>📅 Дата</th>' +
-                                   '<th>📊 Статус</th>' +
-                                   '<th>⏰ Опоздание</th>' +
-                                   '</tr>' +
-                                   '</thead><tbody>';
-                    
-                    for (let i = 0; i < data.records.length; i++) {
-                        const record = data.records[i];
-                        
-                        let date = '';
-                        let status = '';
-                        let delay = 0;
-                        
-                        // Проверяем тип данных
-                        if (Array.isArray(record)) {
-                            date = record[0] || '';
-                            status = record[1] || '';
-                            delay = record[2] || 0;
-                        } else {
-                            date = record.date || '';
-                            status = record.status || '';
-                            delay = record.delay || 0;
-                        }
-                        
-                        let statusText = '';
-                        let statusClass = '';
-                        let delayText = '';
-                        
-                        if (status === 'ontime') {
-                            statusText = '✅ Вовремя';
-                            statusClass = 'ontime';
-                            delayText = '0 мин';
-                        } else if (status === 'late_small') {
-                            statusText = '⚠️ Опоздание';
-                            statusClass = 'late-small';
-                            delayText = `${delay} мин`;
-                        } else if (status === 'late_big') {
-                            statusText = '🔴 Сильное опоздание';
-                            statusClass = 'late-big';
-                            delayText = `${delay} мин`;
-                        } else {
-                            statusText = status || 'Неизвестно';
-                            delayText = delay ? `${delay} мин` : '0 мин';
-                        }
-                        
-                        tableHtml += `<tr>
-                            <td>${date}</td>
-                            <td class="${statusClass}">${statusText}</td>
-                            <td>${delayText}</td>
-                        </tr>`;
-                    }
-                    
-                    tableHtml += '</tbody></table>';
+                    let tableHtml = `</table><thead><tr><th>📅 Дата</th><th>⏰ Опоздание</th></tr></thead><tbody>`;
+                    data.records.forEach(record => {
+                        let delayText = record.delay > 0 ? `⚠️ ${record.delay} мин` : '✅ 0 мин';
+                        let statusClass = record.delay > 0 ? (record.delay <= 30 ? 'late-small' : 'late-big') : 'ontime';
+                        tableHtml += `<tr><td>${record.date}</td><td class="${statusClass}">${delayText}</td></tr>`;
+                    });
+                    tableHtml += `</tbody>${'</table>'}`;
                     tableContainer.innerHTML = tableHtml;
-                } else {
+                if (record.status === 'ontime') {
+                    statusText = '✅ Вовремя';
+                    statusClass = 'ontime';
+                    delayText = '0 мин';
+                } else if (record.status === 'late_small') {
+                    statusText = '⚠️ Опоздание';
+                    statusClass = 'late-small';
+                    delayText = `${record.delay} мин`;
+                } else if (record.status === 'late_big') {
+                    statusText = '🔴 Сильное опоздание';
+                    statusClass = 'late-big';
+                    delayText = `${record.delay} мин`;
+} else {
                     tableContainer.innerHTML = '<div class="no-data">📭 Нет отметок за этот месяц</div>';
                     statsContainer.innerHTML = '';
-                }
+                    statusText = record.status || 'Неизвестно';
+                    delayText = record.delay ? `${record.delay} мин` : '0 мин';
+}
             } catch (error) {
-                console.error('Ошибка:', error);
-                tableContainer.innerHTML = '<div class="no-data">❌ Ошибка загрузки данных: ' + error.message + '</div>';
+                tableContainer.innerHTML = '<div class="no-data">❌ Ошибка загрузки данных</div>';
             }
         }
-        
-        function showCheckinSection() {
-            document.getElementById('checkinSection').classList.add('active');
-            document.getElementById('historySection').classList.remove('active');
-        }
-        
-        function showHistorySection() {
-            document.getElementById('checkinSection').classList.remove('active');
-            document.getElementById('historySection').classList.add('active');
-            const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-            document.getElementById('currentMonth').textContent = `${monthNames[currentMonth]} ${currentYear}`;
-            loadHistory();
-        }
-        
-        function changeMonth(delta) {
-            currentMonth += delta;
-            if (currentMonth < 0) {
-                currentMonth = 11;
-                currentYear--;
-            } else if (currentMonth > 11) {
-                currentMonth = 0;
-                currentYear++;
-            }
-            const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-            document.getElementById('currentMonth').textContent = `${monthNames[currentMonth]} ${currentYear}`;
-            loadHistory();
-        }
-        
-        async function init() {
-            updateDateTime();
-            setInterval(updateDateTime, 1000);
+                
+                tableHtml += `<tr>
+                    <td>${record.date}</td>
+                    <td class="${statusClass}">${statusText}</td>
+                    <td>${delayText}</td>
+                </tr>`;
+            });
             
-            if (BRANCH_FROM_URL) {
-                branch = BRANCH_FROM_URL;
-                document.getElementById('branchName').textContent = branch;
-            }
-            
-            try {
-                const userInfo = await getUserInfo();
-                if (userInfo.status === 'success') {
-                    document.getElementById('userName').textContent = userInfo.user.name;
-                    if (!branch && userInfo.user.branch) {
-                        branch = userInfo.user.branch;
-                        document.getElementById('branchName').textContent = branch;
-                    }
-                } else {
-                    document.getElementById('userName').textContent = 'Ошибка авторизации';
-                    document.getElementById('checkinBtn').disabled = true;
-                    document.getElementById('historyBtn').disabled = true;
-                }
-            } catch (error) {
-                document.getElementById('userName').textContent = 'Ошибка соединения';
-            }
-            
-            document.getElementById('checkinBtn').onclick = checkIn;
-            document.getElementById('historyBtn').onclick = showHistorySection;
-            document.getElementById('backBtn').onclick = showCheckinSection;
-            document.getElementById('closeBtn').onclick = () => tg.close();
-            document.getElementById('closeHistoryBtn').onclick = () => tg.close();
-            document.getElementById('prevMonth').onclick = () => changeMonth(-1);
-            document.getElementById('nextMonth').onclick = () => changeMonth(1);
+            tableHtml += '</tbody></table>';
+            tableContainer.innerHTML = tableHtml;
+        } else {
+            tableContainer.innerHTML = '<div class="no-data">📭 Нет отметок за этот месяц</div>';
+            statsContainer.innerHTML = '';
         }
-        
-        init();
-    </script>
+    } catch (error) {
+        console.error('Ошибка:', error);
+        tableContainer.innerHTML = '<div class="no-data">❌ Ошибка загрузки данных: ' + error.message + '</div>';
+    }
+}
+
+function showCheckinSection() {
+document.getElementById('checkinSection').classList.add('active');
+document.getElementById('historySection').classList.remove('active');
+}
+
+function showHistorySection() {
+document.getElementById('checkinSection').classList.remove('active');
+document.getElementById('historySection').classList.add('active');
+const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+document.getElementById('currentMonth').textContent = `${monthNames[currentMonth]} ${currentYear}`;
+loadHistory();
+}
+
+function changeMonth(delta) {
+currentMonth += delta;
+if (currentMonth < 0) {
+currentMonth = 11;
+currentYear--;
+} else if (currentMonth > 11) {
+currentMonth = 0;
+currentYear++;
+}
+const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+document.getElementById('currentMonth').textContent = `${monthNames[currentMonth]} ${currentYear}`;
+loadHistory();
+}
+
+async function init() {
+updateDateTime();
+setInterval(updateDateTime, 1000);
+
+if (BRANCH_FROM_URL) {
+branch = BRANCH_FROM_URL;
+document.getElementById('branchName').textContent = branch;
+}
+
+try {
+const userInfo = await getUserInfo();
+if (userInfo.status === 'success') {
+document.getElementById('userName').textContent = userInfo.user.name;
+if (!branch && userInfo.user.branch) {
+branch = userInfo.user.branch;
+document.getElementById('branchName').textContent = branch;
+}
+} else {
+document.getElementById('userName').textContent = 'Ошибка авторизации';
+document.getElementById('checkinBtn').disabled = true;
+document.getElementById('historyBtn').disabled = true;
+}
+} catch (error) {
+document.getElementById('userName').textContent = 'Ошибка соединения';
+}
+
+document.getElementById('checkinBtn').onclick = checkIn;
+document.getElementById('historyBtn').onclick = showHistorySection;
+document.getElementById('backBtn').onclick = showCheckinSection;
+document.getElementById('closeBtn').onclick = () => tg.close();
+document.getElementById('closeHistoryBtn').onclick = () => tg.close();
+document.getElementById('prevMonth').onclick = () => changeMonth(-1);
+document.getElementById('nextMonth').onclick = () => changeMonth(1);
+}
+
+init();
+</script>
 </body>
-</html>
