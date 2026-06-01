@@ -396,29 +396,48 @@
         
         async function sendCheckin(location) {
             try {
-                const response = await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        user_id: userData.id,
-                        username: userData.username,
-                        name: `${userData.firstName} ${userData.lastName}`.trim(),
-                        latitude: location.latitude,
-                        longitude: location.longitude,
-                        accuracy: location.accuracy || 0,
-                        branch: branch
-                    })
+                // Используем JSONP и для POST запросов (так как GAS может блокировать обычные POST)
+                return new Promise((resolve, reject) => {
+                    const callbackName = 'jsonp_callback_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                    const script = document.createElement('script');
+                    
+                    const timeout = setTimeout(() => {
+                        if (window[callbackName]) {
+                            delete window[callbackName];
+                            if (script.parentNode) script.parentNode.removeChild(script);
+                            reject(new Error('Превышено время ожидания'));
+                        }
+                    }, 30000);
+                    
+                    window[callbackName] = function(response) {
+                        clearTimeout(timeout);
+                        delete window[callbackName];
+                        if (script.parentNode) script.parentNode.removeChild(script);
+                        resolve(response);
+                    };
+                    
+                    // Формируем URL с параметрами как GET запрос
+                    let url = SCRIPT_URL + '?callback=' + callbackName + 
+                              '&action=checkin' +
+                              '&user_id=' + encodeURIComponent(userData.id) +
+                              '&username=' + encodeURIComponent(userData.username) +
+                              '&name=' + encodeURIComponent(`${userData.firstName} ${userData.lastName}`.trim()) +
+                              '&latitude=' + encodeURIComponent(location.latitude) +
+                              '&longitude=' + encodeURIComponent(location.longitude) +
+                              '&accuracy=' + encodeURIComponent(location.accuracy || 0) +
+                              '&branch=' + encodeURIComponent(branch);
+                    
+                    script.src = url;
+                    script.onerror = () => {
+                        clearTimeout(timeout);
+                        delete window[callbackName];
+                        reject(new Error('Ошибка соединения'));
+                    };
+                    
+                    document.body.appendChild(script);
                 });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                
-                return await response.json();
             } catch (error) {
-                console.error('POST ошибка:', error);
+                console.error('Ошибка:', error);
                 throw error;
             }
         }
