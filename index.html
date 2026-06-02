@@ -540,11 +540,14 @@
                     statusDiv.className = 'status success';
                     statusDiv.textContent = response.message;
                     
+                    // Удалите или закомментируйте этот блок:
+                    /*
                     setTimeout(() => {
                         if (typeof tg !== 'undefined') {
                             tg.close();
                         }
                     }, 2000);
+                    */
                 } else {
                     statusDiv.className = 'status error';
                     statusDiv.textContent = '❌ ' + (response.message || 'Ошибка отправки');
