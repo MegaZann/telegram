@@ -257,6 +257,84 @@
         .section.active {
             display: block;
         }
+
+        /* Модальное окно для выбора причины */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            max-width: 320px;
+            width: 90%;
+            margin: auto;
+        }
+        
+        .modal-content h3 {
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .reason-btn {
+            background: #f0f0f0;
+            border: none;
+            padding: 12px;
+            border-radius: 10px;
+            margin: 5px 0;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .reason-btn:active {
+            background: #e0e0e0;
+            transform: scale(0.98);
+        }
+        
+        .custom-reason-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .modal-buttons button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        
+        .cancel-btn {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .submit-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
         
         @media (max-width: 480px) {
             .container {
@@ -313,6 +391,19 @@
             <button class="checkin-btn" id="backBtn">Назад к отметке</button>
             <button class="close-btn" id="closeHistoryBtn">Закрыть</button>
         </div>
+
+        <!-- Модальное окно для выбора причины опоздания -->
+        <div id="reasonModal" class="modal">
+            <div class="modal-content">
+                <h3>📝 Причина опоздания</h3>
+                <div id="reasonsList"></div>
+                <input type="text" id="customReason" class="custom-reason-input" placeholder="Или напишите свою причину" style="display: none;">
+                <div class="modal-buttons">
+                    <button class="cancel-btn" onclick="closeReasonModal()">Отмена</button>
+                    <button class="submit-btn" onclick="submitReason()">Отправить</button>
+                </div>
+            </div>
+        </div>
     </div>
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -339,6 +430,8 @@
         let branch = BRANCH_FROM_URL;
         let currentMonth = new Date().getMonth();
         let currentYear = new Date().getFullYear();
+        let pendingLocation = null;
+        let pendingDistance = null;
         
         // Функция JSONP запроса
         function jsonpRequest(params) {
@@ -500,7 +593,7 @@
         async function checkIn() {
             const btn = document.getElementById('checkinBtn');
             const statusDiv = document.getElementById('status');
-
+        
             if (btn.disabled) return;
             
             if (!branch || branch === 'Не выбран' || branch === '') {
@@ -532,32 +625,175 @@
                     return;
                 }
                 
-                statusDiv.textContent = '📤 Отправка данных...';
-        
-                const response = await sendCheckin(location);
+                // Проверяем время и опоздание
+                const now = new Date();
+                const workStart = new Date();
+                workStart.setHours(9, 0, 0);
+                const delayMinutes = Math.floor((now - workStart) / 60000);
                 
-                if (response.status === 'success') {
-                    statusDiv.className = 'status success';
-                    statusDiv.textContent = response.message;
-                    
-                    // Удалите или закомментируйте этот блок:
-                    /*
-                    setTimeout(() => {
-                        if (typeof tg !== 'undefined') {
-                            tg.close();
-                        }
-                    }, 2000);
-                    */
-                } else {
-                    statusDiv.className = 'status error';
-                    statusDiv.textContent = '❌ ' + (response.message || 'Ошибка отправки');
+                // Если есть опоздание и включены причины в настройках
+                if (delayMinutes > 0) {
+                    // Сохраняем данные для отправки после выбора причины
+                    pendingLocation = location;
+                    pendingDistance = distance;
+                    showReasonModal(delayMinutes);
                     btn.disabled = false;
                     btn.classList.remove('loading');
+                } else {
+                    // Нет опоздания - отправляем сразу
+                    statusDiv.textContent = '📤 Отправка данных...';
+                    const response = await sendCheckinWithReason(location, null);
+                    handleCheckinResponse(response, btn, statusDiv);
                 }
                 
             } catch (error) {
                 statusDiv.className = 'status error';
                 statusDiv.textContent = `❌ ${error.message}`;
+                btn.disabled = false;
+                btn.classList.remove('loading');
+            }
+        }
+
+        // Показать модальное окно с причинами
+        async function showReasonModal(delayMinutes) {
+            const modal = document.getElementById('reasonModal');
+            const reasonsList = document.getElementById('reasonsList');
+            const customReasonInput = document.getElementById('customReason');
+            
+            // Получаем причины из настроек
+            let reasons = ['Пробки', 'Заболел', 'Личные дела', 'Проспал(а)', 'Транспорт', 'Другое'];
+            
+            reasonsList.innerHTML = '';
+            reasons.forEach(reason => {
+                const btn = document.createElement('button');
+                btn.className = 'reason-btn';
+                btn.textContent = reason;
+                btn.onclick = () => {
+                    selectReason(reason);
+                };
+                reasonsList.appendChild(btn);
+            });
+            
+            // Кнопка "Другое" показывает поле ввода
+            const otherBtn = document.createElement('button');
+            otherBtn.className = 'reason-btn';
+            otherBtn.textContent = '✏️ Другое (написать свою причину)';
+            otherBtn.onclick = () => {
+                customReasonInput.style.display = 'block';
+                customReasonInput.focus();
+            };
+            reasonsList.appendChild(otherBtn);
+            
+            modal.style.display = 'flex';
+        }
+        
+        function selectReason(reason) {
+            pendingReason = reason;
+            document.getElementById('customReason').style.display = 'none';
+            document.getElementById('reasonModal').style.display = 'none';
+            
+            // Отправляем отметку с причиной
+            sendCheckinWithReason(pendingLocation, reason);
+        }
+        
+        function closeReasonModal() {
+            document.getElementById('reasonModal').style.display = 'none';
+            pendingLocation = null;
+            const btn = document.getElementById('checkinBtn');
+            btn.disabled = false;
+            btn.classList.remove('loading');
+            document.getElementById('status').style.display = 'none';
+        }
+        
+        async function submitReason() {
+            const customReason = document.getElementById('customReason').value.trim();
+            if (customReason) {
+                pendingReason = customReason;
+                document.getElementById('reasonModal').style.display = 'none';
+                await sendCheckinWithReason(pendingLocation, customReason);
+            } else {
+                alert('Пожалуйста, напишите причину опоздания');
+            }
+        }
+        
+        let pendingReason = null;
+        
+        async function sendCheckinWithReason(location, reason) {
+            const btn = document.getElementById('checkinBtn');
+            const statusDiv = document.getElementById('status');
+            
+            statusDiv.textContent = '📤 Отправка данных...';
+            statusDiv.style.display = 'block';
+            
+            try {
+                let url = SCRIPT_URL + '?callback=jsonp_callback_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                url += '&action=checkin';
+                url += '&user_id=' + encodeURIComponent(userData.id);
+                url += '&username=' + encodeURIComponent(userData.username);
+                url += '&name=' + encodeURIComponent(`${userData.firstName} ${userData.lastName}`.trim());
+                url += '&latitude=' + encodeURIComponent(location.latitude);
+                url += '&longitude=' + encodeURIComponent(location.longitude);
+                url += '&accuracy=' + encodeURIComponent(location.accuracy || 0);
+                url += '&branch=' + encodeURIComponent(branch);
+                if (reason) {
+                    url += '&reason=' + encodeURIComponent(reason);
+                }
+                
+                const response = await jsonpRequestFromUrl(url);
+                handleCheckinResponse(response, btn, statusDiv);
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = `❌ ${error.message}`;
+                btn.disabled = false;
+                btn.classList.remove('loading');
+            }
+        }
+        
+        function jsonpRequestFromUrl(url) {
+            return new Promise((resolve, reject) => {
+                const callbackMatch = url.match(/callback=([^&]+)/);
+                const callbackName = callbackMatch ? callbackMatch[1] : 'jsonp_callback_' + Date.now();
+                
+                const script = document.createElement('script');
+                
+                const timeout = setTimeout(() => {
+                    if (window[callbackName]) {
+                        delete window[callbackName];
+                        if (script.parentNode) script.parentNode.removeChild(script);
+                        reject(new Error('Превышено время ожидания'));
+                    }
+                }, 30000);
+                
+                window[callbackName] = function(response) {
+                    clearTimeout(timeout);
+                    delete window[callbackName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    resolve(response);
+                };
+                
+                script.src = url;
+                script.onerror = () => {
+                    clearTimeout(timeout);
+                    delete window[callbackName];
+                    reject(new Error('Ошибка соединения'));
+                };
+                
+                document.body.appendChild(script);
+            });
+        }
+        
+        function handleCheckinResponse(response, btn, statusDiv) {
+            if (response.status === 'success') {
+                statusDiv.className = 'status success';
+                statusDiv.textContent = response.message;
+                setTimeout(() => {
+                    if (typeof tg !== 'undefined') {
+                        tg.close();
+                    }
+                }, 2000);
+            } else {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = response.message || 'Ошибка отправки';
                 btn.disabled = false;
                 btn.classList.remove('loading');
             }
@@ -583,14 +819,12 @@
                     `;
                     
                     // СОЗДАЕМ ТАБЛИЦУ С 3 КОЛОНКАМИ
-                    let tableHtml = '<table>' +
-                                   '<thead>' +
-                                   '<tr>' +
-                                   '<th>Дата</th>' +
-                                   '<th>Статус</th>' +
-                                   '<th>Опоздание</th>' +
-                                   '</tr>' +
-                                   '</thead><tbody>';
+                    let tableHtml = '<table><thead><tr>' +
+                        '<th>📅 Дата</th>' +
+                        '<th>📊 Статус</th>' +
+                        '<th>⏰ Опоздание</th>' +
+                        '<th>📝 Причина</th>' +
+                        '</tr></thead><tbody>';
                     
                     for (let i = 0; i < data.records.length; i++) {
                         const record = data.records[i];
@@ -631,10 +865,12 @@
                             delayText = delay ? `${delay} мин` : '0 мин';
                         }
                         
+                        let reasonText = record.reason || '-';
                         tableHtml += `<tr>
                             <td>${date}</td>
                             <td class="${statusClass}">${statusText}</td>
                             <td>${delayText}</td>
+                            <td>${reasonText}</td>
                         </tr>`;
                     }
                     
