@@ -646,7 +646,7 @@
                     // Нет опоздания - отправляем сразу
                     statusDiv.textContent = '📤 Отправка данных...';
                     const response = await sendCheckinWithReason(location, null);
-                    handleCheckinResponse(response, btn, statusDiv);
+                    // handleCheckinResponse(response, btn, statusDiv);
                 }
                 
             } catch (error) {
@@ -762,13 +762,36 @@
                 url += '&accuracy=' + encodeURIComponent(location.accuracy || 0);
                 url += '&branch=' + encodeURIComponent(branch);
                 
-                // ИСПРАВЛЕНО: проверяем, что reason существует, не null и не пустая строка
                 if (reason && reason !== 'null' && reason.trim() !== '') {
                     url += '&reason=' + encodeURIComponent(reason);
                 }
                 
                 const response = await jsonpRequestFromUrl(url);
-                handleCheckinResponse(response, btn, statusDiv);
+                
+                // Обработка ответа здесь
+                if (!response || typeof response !== 'object') {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '❌ Нет ответа от сервера. Попробуйте позже.';
+                    btn.disabled = false;
+                    btn.classList.remove('loading');
+                    return;
+                }
+                
+                if (response.status === 'success') {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = response.message;
+                    setTimeout(() => {
+                        if (typeof tg !== 'undefined') {
+                            tg.close();
+                        }
+                    }, 2000);
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = response.message || 'Ошибка отправки';
+                    btn.disabled = false;
+                    btn.classList.remove('loading');
+                }
+                
             } catch (error) {
                 statusDiv.className = 'status error';
                 statusDiv.textContent = `❌ ${error.message}`;
