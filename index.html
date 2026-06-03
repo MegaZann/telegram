@@ -735,7 +735,9 @@
                 url += '&longitude=' + encodeURIComponent(location.longitude);
                 url += '&accuracy=' + encodeURIComponent(location.accuracy || 0);
                 url += '&branch=' + encodeURIComponent(branch);
-                if (reason) {
+                
+                // ИСПРАВЛЕНО: проверяем, что reason существует, не null и не пустая строка
+                if (reason && reason !== 'null' && reason.trim() !== '') {
                     url += '&reason=' + encodeURIComponent(reason);
                 }
                 
