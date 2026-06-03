@@ -627,8 +627,11 @@
                 
                 // Проверяем время и опоздание
                 const now = new Date();
+                const settings = await getWorkStartTime();
+                const workStartHour = parseInt(settings.work_start_hour) || 9;
+                const workStartMinute = parseInt(settings.work_start_minute) || 0;
                 const workStart = new Date();
-                workStart.setHours(9, 0, 0);
+                workStart.setHours(workStartHour, workStartMinute, 0);
                 const delayMinutes = Math.floor((now - workStart) / 60000);
                 
                 // Если есть опоздание и включены причины в настройках
@@ -652,6 +655,29 @@
                 btn.disabled = false;
                 btn.classList.remove('loading');
             }
+        }
+
+        async function getWorkStartTime() {
+            return new Promise((resolve) => {
+                const callbackName = 'jsonp_settings_' + Date.now();
+                const script = document.createElement('script');
+                
+                window[callbackName] = function(response) {
+                    delete window[callbackName];
+                    resolve(response);
+                };
+                
+                let url = SCRIPT_URL + '?callback=' + callbackName + '&action=getSettings';
+                script.src = url;
+                document.body.appendChild(script);
+                
+                setTimeout(() => {
+                    if (window[callbackName]) {
+                        delete window[callbackName];
+                        resolve({ work_start_hour: 9, work_start_minute: 0 });
+                    }
+                }, 3000);
+            });
         }
 
         // Показать модальное окно с причинами
@@ -785,14 +811,23 @@
         }
         
         function handleCheckinResponse(response, btn, statusDiv) {
+            // ДОБАВЬТЕ ЭТУ ПРОВЕРКУ В НАЧАЛО
+            if (!response || typeof response !== 'object') {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '❌ Нет ответа от сервера. Попробуйте позже.';
+                btn.disabled = false;
+                btn.classList.remove('loading');
+                return;
+            }
+            
             if (response.status === 'success') {
                 statusDiv.className = 'status success';
                 statusDiv.textContent = response.message;
-                setTimeout(() => {
-                    if (typeof tg !== 'undefined') {
-                        tg.close();
-                    }
-                }, 2000);
+                // setTimeout(() => {
+                //     if (typeof tg !== 'undefined') {
+                //         tg.close();  // ← ЗАКОММЕНТИРОВАНО
+                //     }
+                // }, 2000);
             } else {
                 statusDiv.className = 'status error';
                 statusDiv.textContent = response.message || 'Ошибка отправки';
