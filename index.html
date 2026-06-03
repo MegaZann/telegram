@@ -780,11 +780,11 @@
                 if (response.status === 'success') {
                     statusDiv.className = 'status success';
                     statusDiv.textContent = response.message;
-                    setTimeout(() => {
+                    /* setTimeout(() => {
                         if (typeof tg !== 'undefined') {
                             tg.close();
                         }
-                    }, 2000);
+                    }, 2000); */
                 } else {
                     statusDiv.className = 'status error';
                     statusDiv.textContent = response.message || 'Ошибка отправки';
