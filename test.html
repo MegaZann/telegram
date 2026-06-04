@@ -536,7 +536,7 @@
     const ORIGINAL_URL = "https://drive.google.com/uc?export=download&id=17snkkjMI0gBlxXTdtpONJKiUh_dHVld5";
     
     // ВАРИАНТ 1: corsproxy.io (более стабильный)
-    const JSON_URL = "https://corsproxy.io/?" + encodeURIComponent(ORIGINAL_URL);
+    const JSON_URL = "https://cors-anywhere.herokuapp.com/" + ORIGINAL_URL;
     
     // ВАРИАНТ 2 (запасной, раскомментируйте если вариант 1 не работает):
     // const JSON_URL = "https://cors-anywhere.herokuapp.com/" + ORIGINAL_URL;
