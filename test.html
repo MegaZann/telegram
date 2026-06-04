@@ -532,8 +532,13 @@
 </div>
 
 <script>
-    // ========== ВАША ССЫЛКА ИЗ ЛОГОВ ==========
-    const JSON_URL = "https://drive.google.com/uc?export=download&id=17snkkjMI0gBlxXTdtpONJKiUh_dHVld5";
+    // ========== НАСТРОЙКИ ==========
+    // const JSON_URL = "https://drive.google.com/uc?export=download&id=17snkkjMI0gBlxXTdtpONJKiUh_dHVld5";
+    // Оригинальная ссылка из Google Drive
+    const ORIGINAL_URL = "https://drive.google.com/uc?export=download&id=17snkkjMI0gBlxXTdtpONJKiUh_dHVld5";
+    
+    // Прокси для обхода CORS (работает с HTTP)
+    const JSON_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(ORIGINAL_URL);
     
     let menuItems = [];
     let categories = new Set();
