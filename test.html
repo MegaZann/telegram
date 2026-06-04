@@ -533,12 +533,13 @@
 
 <script>
     // ========== НАСТРОЙКИ ==========
-    // const JSON_URL = "https://drive.google.com/uc?export=download&id=17snkkjMI0gBlxXTdtpONJKiUh_dHVld5";
-    // Оригинальная ссылка из Google Drive
     const ORIGINAL_URL = "https://drive.google.com/uc?export=download&id=17snkkjMI0gBlxXTdtpONJKiUh_dHVld5";
     
-    // Прокси для обхода CORS (работает с HTTP)
-    const JSON_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(ORIGINAL_URL);
+    // ВАРИАНТ 1: corsproxy.io (более стабильный)
+    const JSON_URL = "https://corsproxy.io/?" + encodeURIComponent(ORIGINAL_URL);
+    
+    // ВАРИАНТ 2 (запасной, раскомментируйте если вариант 1 не работает):
+    // const JSON_URL = "https://cors-anywhere.herokuapp.com/" + ORIGINAL_URL;
     
     let menuItems = [];
     let categories = new Set();
@@ -818,7 +819,14 @@
     async function loadData() {
         try {
             console.log("🔄 Загрузка данных...");
-            const response = await fetch(`${JSON_URL}&t=${Date.now()}`);
+            console.log("URL:", JSON_URL);
+            
+            // Добавляем таймаут 30 секунд
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
+            
+            const response = await fetch(JSON_URL, { signal: controller.signal });
+            clearTimeout(timeoutId);
             
             if(!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
@@ -848,7 +856,7 @@
             
         } catch(err) {
             console.error("❌ Ошибка загрузки:", err);
-            document.getElementById("menu-container").innerHTML = `<div class="loading">⚠️ Ошибка загрузки меню<br><small>${err.message}</small></div>`;
+            document.getElementById("menu-container").innerHTML = `<div class="loading">⚠️ Ошибка загрузки меню<br><small>${err.message}</small><br><br>🔄 Проверьте соединение или обновите страницу</div>`;
         }
     }
     
