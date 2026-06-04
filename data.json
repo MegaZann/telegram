@@ -1,0 +1,63 @@
+{
+  "menu": [
+    {
+      "id": "1",
+      "name": "Филадельфия",
+      "description": "Нежный ролл с лососем",
+      "price": 450,
+      "photo_url": "https://example.com/fila.jpg",
+      "label": "popular",
+      "discount": 0,
+      "category": "Суши"
+    },
+    {
+      "id": "2",
+      "name": "Спайси Тунец",
+      "description": "Острый ролл",
+      "price": 320,
+      "photo_url": "https://example.com/spicy.jpg",
+      "label": "new",
+      "discount": 10,
+      "category": "Суши"
+    },
+    {
+      "id": "3",
+      "name": "Пепперони",
+      "description": "Острая пицца",
+      "price": 550,
+      "photo_url": "https://example.com/pep.jpg",
+      "label": "",
+      "discount": 0,
+      "category": "Пицца"
+    },
+    {
+      "id": "4",
+      "name": "Кола 0.5",
+      "description": "Газировка",
+      "price": 120,
+      "photo_url": "https://example.com/cola.jpg",
+      "label": "",
+      "discount": 0,
+      "category": "Напитки"
+    }
+  ],
+  "settings": {
+    "phone": "8 999 123 45 67",
+    "work_hours": "Пн-Вс: 12:00–23:00",
+    "instagram": "https://instagram.com/sushi_michurina",
+    "telegram": "https://t.me/sushi_michurina",
+    "delivery_min": 500,
+    "delivery_free": 1500,
+    "last_update": "04.06.2026, 14:31:34",
+    "key": "value"
+  },
+  "stats": {
+    "total_items": 4,
+    "categories": [
+      "Суши",
+      "Пицца",
+      "Напитки"
+    ],
+    "generated_at": "2026-06-04T11:31:34.748Z"
+  }
+}
